@@ -45,8 +45,9 @@ export class Effects {
   private splitActive = false;
   private splitColor = "#ffcf3a";
 
-  /** 불꽃놀이(연속 폭죽). */
+  /** 불꽃놀이(연속 폭죽) — 최상단 레이어. */
   private shells: { x: number; y: number; vy: number; targetY: number; color: string }[] = [];
+  private fwParticles: Particle[] = [];
   private fireworksT = 0;
   private fwTimer = 0;
 
@@ -131,14 +132,14 @@ export class Effects {
       const a = (i / n) * Math.PI * 2 + Math.random() * 0.2;
       const sp = 110 + Math.random() * 280;
       const c = Math.random() < 0.55 ? color : Effects.FW_COLORS[(Math.random() * Effects.FW_COLORS.length) | 0]!;
-      this.burstP.push({
+      this.fwParticles.push({
         x,
         y,
         vx: Math.cos(a) * sp,
         vy: Math.sin(a) * sp,
-        r: 2 + Math.random() * 3.5,
+        r: 2.5 + Math.random() * 3.5,
         life: 1,
-        maxLife: 0.8 + Math.random() * 0.9,
+        maxLife: 0.9 + Math.random() * 1.0,
         color: c,
       });
     }
@@ -239,6 +240,13 @@ export class Effects {
     for (const s of this.shells) s.y += s.vy * dt;
     for (const s of this.shells) if (s.y <= s.targetY) this.explode(s.x, s.y, s.color);
     this.shells = this.shells.filter((s) => s.y > s.targetY);
+    for (const p of this.fwParticles) {
+      p.life += dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 160 * dt;
+    }
+    this.fwParticles = this.fwParticles.filter((p) => p.life < p.maxLife);
 
     for (const b of this.beams) b.life += dt;
     this.beams = this.beams.filter((b) => b.life < b.maxLife);
@@ -277,14 +285,30 @@ export class Effects {
       ctx.fill();
     }
     ctx.shadowBlur = 0;
-    // 상승하는 폭죽 쉘.
+    ctx.restore();
+  }
+
+  /** 불꽃놀이 — 최상단(패널·영상 위)에 그린다. */
+  drawFireworks(ctx: CanvasRenderingContext2D): void {
+    if (this.shells.length === 0 && this.fwParticles.length === 0) return;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (const p of this.fwParticles) {
+      ctx.globalAlpha = Math.max(0, 1 - p.life / p.maxLife);
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
     for (const s of this.shells) {
       ctx.globalAlpha = 0.95;
       ctx.fillStyle = s.color;
       ctx.shadowColor = s.color;
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 14;
       ctx.beginPath();
-      ctx.arc(s.x, s.y, 3, 0, Math.PI * 2);
+      ctx.arc(s.x, s.y, 3.5, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();

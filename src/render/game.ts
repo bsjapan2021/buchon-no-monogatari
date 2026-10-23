@@ -418,8 +418,8 @@ export class Game {
       this.playVideo("11");
       this.audio.ooatari();
       this.fx.startFireworks(5); // 형형색색 폭죽 연속
-      this.fx.startSplit("#ffcf3a", 0.95);
-      this.fx.flash(pal.glow, 0.95);
+      this.fx.startSplit("#ffcf3a", 0.8);
+      this.fx.flash(pal.glow, 0.5);
       this.fx.shake(1.3, 0.9);
       this.fx.burst(center.x, center.y, pal.glow, 170);
       this.winLine = out.line;
@@ -435,6 +435,7 @@ export class Game {
       this.reachStreak++;
       if (this.reachStreak >= 2) this.playVideo("12");
       this.audio.reach();
+      this.fx.startFireworks(3.5); // 리치(大当り)도 폭죽
       this.fx.flash(pal.glow, 0.6);
       this.fx.shake(0.6, 0.4);
       this.fx.burst(center.x, center.y, pal.glow, 60);
@@ -564,6 +565,7 @@ export class Game {
     this.fx.drawBeams(ctx);
     if (!this.activeVideo) this.drawCutinChar(ctx);
     this.fx.drawOverlay(ctx);
+    this.fx.drawFireworks(ctx); // 폭죽은 영상·패널 위 최상단
   }
 
   private drawVideo(ctx: CanvasRenderingContext2D): void {
