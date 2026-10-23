@@ -10,3 +10,4 @@ dist/
 /*.jpg
 /*.jpeg
 /스크린샷*.png
+.vercel

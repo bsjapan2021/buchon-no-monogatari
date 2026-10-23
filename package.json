@@ -1,12 +1,13 @@
 {
-  "name": "abyss-lumina",
+  "name": "buchon-no-monogatari",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "ABYSS LUMINA — 오리지널 심해 테마 빠칭코 확률 시뮬레이터 (웹)",
+  "description": "ブチョンの物語 — 오리지널 심해 테마 파친코 확률 시뮬레이터 (웹)",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
