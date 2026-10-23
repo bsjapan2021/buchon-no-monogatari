@@ -99,7 +99,8 @@ export class Reel {
     const frac = this.scroll - base * step;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(x - step * 0.02, y - step / 2, step * 3 + step * 0.04, step);
+    // 가로폭은 step 기준, 세로는 셀 높이(cellSize) 기준으로 클리핑.
+    ctx.rect(x - step * 0.02, y - cellSize * 0.66, step * 3 + step * 0.04, cellSize * 1.32);
     ctx.clip();
     for (let k = -1; k <= 3; k++) {
       const sym = this.symbolAt(base + k);

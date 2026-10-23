@@ -63,16 +63,6 @@ export function paletteFor(id: number): SymbolPalette {
   return { core: "#efe2ff", edge: "#6b3fd4", glow: "#9b6cff", text: "#2a1159" };
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
 /**
  * 심볼 1개를 그린다.
  * @param t 시간(초) — 발광 맥동.
@@ -94,32 +84,30 @@ export function drawSymbol(
 
   ctx.save();
 
-  // 발광 배경 패널 (둥근 사각 + 홀/짝 색).
-  ctx.shadowColor = pal.glow;
-  ctx.shadowBlur = glow;
-  const panel = size * 0.92;
-  const grad = ctx.createLinearGradient(cx, cy - panel / 2, cx, cy + panel / 2);
-  grad.addColorStop(0, "rgba(255,255,255,0.14)");
-  grad.addColorStop(0.5, hexToRgba(pal.glow, 0.22));
-  grad.addColorStop(1, hexToRgba(pal.edge, 0.3));
-  roundRect(ctx, cx - panel / 2, cy - panel / 2, panel, panel, size * 0.14);
-  ctx.fillStyle = grad;
+  // 사각 카드 없이 — 부드러운 원형 발광 배경(자연스럽게).
+  const rr = size * 0.62;
+  const bg = ctx.createRadialGradient(cx, cy, rr * 0.15, cx, cy, rr);
+  bg.addColorStop(0, hexToRgba(pal.glow, 0.32 + glowBoost * 0.4));
+  bg.addColorStop(0.55, hexToRgba(pal.glow, 0.12));
+  bg.addColorStop(1, hexToRgba(pal.glow, 0));
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.arc(cx, cy, rr, 0, Math.PI * 2);
   ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.lineWidth = Math.max(1.5, size * 0.025);
-  ctx.strokeStyle = hexToRgba(pal.glow, 0.85);
-  ctx.stroke();
 
-  // 캐릭터 이미지 (contain, 중앙 정렬).
+  // 캐릭터 이미지 (contain, 중앙 정렬) + 발광.
   const img = IMAGES[id - 1];
   if (img && img.complete && img.naturalWidth > 0) {
-    const box = size * 0.86;
+    const box = size * 0.98;
     const ar = img.naturalWidth / img.naturalHeight;
     let dw = box;
     let dh = box;
     if (ar >= 1) dh = box / ar;
     else dw = box * ar;
+    ctx.shadowColor = pal.glow;
+    ctx.shadowBlur = glow;
     ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+    ctx.shadowBlur = 0;
   } else {
     // 로딩 전 폴백: 숫자만.
     ctx.fillStyle = pal.core;

@@ -10,6 +10,7 @@ const fmt = (n: number) => Math.round(n).toLocaleString();
 game.onHud = (h: HudData) => {
   el("h-mode").textContent = h.mode;
   el("h-modebadge").textContent = `${h.mode} 모드`;
+  el("h-modebadge").classList.toggle("super", h.mode === "슈퍼");
   el("h-window").textContent = h.windowSpin > 0 ? `${h.windowSpin}/100 회전` : "";
   const held = el("h-held");
   held.textContent = fmt(h.held);
@@ -25,7 +26,26 @@ game.onHud = (h: HudData) => {
   el("sb-held").textContent = fmt(h.held);
   el("sb-reach").textContent = fmt(h.reachCount);
   el("sb-super").textContent = fmt(h.ooatari);
+  // 구슬 박스 (1박스=1000개) — 보유량만큼 양 사이드에 쌓임.
+  renderBoxes(h.held);
 };
+
+// ---- 구슬 박스 ----
+let lastBoxN = -1;
+function renderBoxes(held: number): void {
+  const n = Math.min(40, Math.floor(held / 1000));
+  if (n === lastBoxN) return;
+  lastBoxN = n;
+  const L = Math.ceil(n / 2);
+  const R = n - L;
+  el("boxes-left").innerHTML = boxHtml(L);
+  el("boxes-right").innerHTML = boxHtml(R);
+}
+function boxHtml(k: number): string {
+  let s = "";
+  for (let i = 0; i < k; i++) s += '<div class="ballbox"><span class="bb-label">ブチョンPACHINKO</span></div>';
+  return s;
+}
 
 // ---- 입력 ----
 el("btn-fire").addEventListener("click", () => game.toggleAuto());

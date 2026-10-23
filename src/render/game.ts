@@ -198,7 +198,7 @@ export class Game {
     this.buildDisplay(out);
     this.scheduleStops(out);
 
-    const speed = this.step() * 11 * this.spinSpeedMul;
+    const speed = this.stepX() * 11 * this.spinSpeedMul;
     for (const r of this.reels) r.startSpin(speed);
 
     this.phase = "spinning";
@@ -311,7 +311,7 @@ export class Game {
             const d = this.dur(0.4 + Math.random() * 0.35);
             this.reels[r]!.requestStop(
               this.targetsFor(r),
-              this.step(),
+              this.stepX(),
               extra,
               d,
               this.offsets[r],
@@ -367,7 +367,7 @@ export class Game {
       this.cutinIdx = 0;
       this.cutinTimer = 0;
       this.omenSwitched = false;
-      this.fx.showCutin(out.kind === "ooatari" ? "찬스!" : "리치 예감", "", "#9fe9ff");
+      this.fx.showCutin(out.kind === "ooatari" ? "チャンス! 찬스!" : "リーチ予感 / 리치 예감", "", "#9fe9ff");
     }
     if (out.kind === "ooatari" && prog > 0.28 && !this.omenSwitched) {
       this.omenSwitched = true;
@@ -375,7 +375,7 @@ export class Game {
       this.cutinSet = OMEN_CUTINS;
       this.cutinIdx = 0;
       this.cutinTimer = 0;
-      this.fx.showCutin("大当たり 予告!!", "8·9 출현 — 홀수 정렬!", "#ffcf3a");
+      this.fx.showCutin("大当たり予告 / 오아다리 징조!!", "8·9 출현 — 홀수 정렬!", "#ffcf3a");
     }
   }
 
@@ -398,8 +398,8 @@ export class Game {
       const payout = 1500;
       this.held += payout;
       this.hud.ooatari++;
-      this.fx.showCutin("大当たり!!", `${out.number} 홀수 정렬 +${payout}구슬`, pal.glow);
-      this.hud.message = `大当たり! ${out.number} 정렬 (+${payout}) ${out.continued ? "[연장]" : ""}`;
+      this.fx.showCutin("大当たり / 오아다리!!", `${out.number} 홀수 정렬 +${payout}구슬`, pal.glow);
+      this.hud.message = `大当たり(오아다리)! ${out.number} 정렬 (+${payout}) ${out.continued ? "[연장]" : ""}`;
     } else if (out.kind === "reach") {
       const pal = paletteFor(out.number);
       // 2회 이상 연속 리치 → 12.mov 재생.
@@ -414,8 +414,8 @@ export class Game {
       const payout = 300;
       this.held += payout;
       this.hud.reachCount++;
-      this.fx.showCutin("리치!", `${out.number} 짝수 정렬 +${payout}구슬`, pal.glow);
-      this.hud.message = `리치! ${out.number} 정렬 (+${payout})`;
+      this.fx.showCutin("リーチ / 리치!", `${out.number} 짝수 정렬 +${payout}구슬`, pal.glow);
+      this.hud.message = `リーチ(리치)! ${out.number} 정렬 (+${payout})`;
     } else {
       this.winLine = null;
       this.winGlow = 0;
@@ -438,12 +438,16 @@ export class Game {
     this.onHud({ ...this.hud });
   }
 
-  // ---- 지오메트리 (릴 패널 크게, 상단) ----
+  // ---- 지오메트리 (릴 패널 — 가로폭 2배, 세로는 그대로) ----
+  // step=세로(셀 높이) 기준, stepX=가로 열 간격(세로의 2배) → 모니터 폭 2배.
   private step(): number {
-    return Math.min((this.w * 0.5) / 3, this.h * 0.17);
+    return Math.min((this.w * 0.92) / 6, this.h * 0.17);
+  }
+  private stepX(): number {
+    return this.step() * 2;
   }
   private reelLeft(): number {
-    return (this.w - 3 * this.step()) / 2;
+    return (this.w - 3 * this.stepX()) / 2;
   }
   private rowYs(): [number, number, number] {
     const s = this.step();
@@ -452,11 +456,12 @@ export class Game {
   }
   private panelRect(): PanelRect {
     const s = this.step();
+    const sx = this.stepX();
     const left = this.reelLeft();
     const rows = this.rowYs();
-    const x = left - s * 0.08;
+    const x = left - sx * 0.05;
     const y = rows[0] - s * 0.62;
-    const w = s * 3 + s * 0.16;
+    const w = sx * 3 + sx * 0.1;
     const h = rows[2] + s * 0.62 - y;
     return { x, y, w, h, r: 16 };
   }
@@ -467,7 +472,7 @@ export class Game {
   }
 
   private cellCenter(row: number, col: number): { x: number; y: number } {
-    return { x: this.reelLeft() + (col + 0.5) * this.step(), y: this.rowYs()[row] };
+    return { x: this.reelLeft() + (col + 0.5) * this.stepX(), y: this.rowYs()[row] };
   }
 
   draw(): void {
@@ -483,8 +488,9 @@ export class Game {
     this.playfield.draw(ctx);
 
     const step = this.step();
+    const stepX = this.stepX();
     const left = this.reelLeft();
-    const cellSize = step * 0.82;
+    const cellSize = step * 0.92;
     const rowY = this.rowYs();
     const pr = this.panelRect();
 
@@ -501,7 +507,7 @@ export class Game {
     // 3행 릴.
     const glow = this.winGlow;
     for (let i = 0; i < 3; i++) {
-      this.reels[i]!.draw(ctx, left, rowY[i]!, step, cellSize, this.time, glow * 0.5);
+      this.reels[i]!.draw(ctx, left, rowY[i]!, stepX, cellSize, this.time, glow * 0.5);
     }
 
     // 당첨 라인 하이라이트.

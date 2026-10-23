@@ -27,7 +27,7 @@ export class AudioManager {
     this.master.gain.value = this.muted ? 0 : 0.5;
     this.master.connect(this.ctx.destination);
     this.bgmGain = this.ctx.createGain();
-    this.bgmGain.gain.value = 0.1;
+    this.bgmGain.gain.value = 0.3; // 배경음 3배
     this.bgmGain.connect(this.master);
     this.startBgm();
     this.startAmbience();
@@ -37,7 +37,7 @@ export class AudioManager {
   private startAmbience(): void {
     if (!this.ctx || !this.master) return;
     this.ambGain = this.ctx.createGain();
-    this.ambGain.gain.value = 0.6;
+    this.ambGain.gain.value = 1.0; // 파친코장 앰비언스 크게
     this.ambGain.connect(this.master);
     // 볼 캐스케이드: 루핑 노이즈 베드.
     const bed = this.ctx.createBufferSource();
@@ -48,7 +48,7 @@ export class AudioManager {
     bp.frequency.value = 3200;
     bp.Q.value = 0.6;
     const bedGain = this.ctx.createGain();
-    bedGain.gain.value = 0.12;
+    bedGain.gain.value = 0.34;
     bed.connect(bp);
     bp.connect(bedGain);
     bedGain.connect(this.ambGain);
@@ -77,7 +77,7 @@ export class AudioManager {
     const steps = [0, 2, 4, 7, 9];
     for (let i = 0; i < n; i++) {
       const f = base * 2 ** (steps[i % steps.length]! / 12);
-      this.blip(f, 0.14, dest, type, i * 0.1, 0.07);
+      this.blip(f, 0.14, dest, type, i * 0.1, 0.2);
     }
   }
 
@@ -205,15 +205,15 @@ export class AudioManager {
     return buf;
   }
 
-  private speak(text: string, lang = "ko-KR"): void {
+  private speak(text: string, lang = "ko-KR", cancel = true): void {
     if (this.muted || typeof speechSynthesis === "undefined") return;
     try {
+      if (cancel) speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       u.lang = lang;
       u.pitch = 1.5;
       u.rate = 0.95;
       u.volume = 1;
-      speechSynthesis.cancel();
       speechSynthesis.speak(u);
     } catch {
       /* 음성 미지원 무시 */

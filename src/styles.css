@@ -13,7 +13,11 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: radial-gradient(circle at 50% -10%, #0a3850, #04121c 60%);
+  background:
+    radial-gradient(circle at 15% 0%, rgba(255, 95, 162, 0.22), transparent 42%),
+    radial-gradient(circle at 85% 10%, rgba(155, 108, 255, 0.24), transparent 45%),
+    radial-gradient(circle at 50% 120%, rgba(46, 230, 198, 0.22), transparent 55%),
+    radial-gradient(circle at 50% -10%, #0a3850, #04121c 60%);
   color: var(--text);
   font-family: "Trebuchet MS", system-ui, -apple-system, sans-serif;
   overflow: hidden;
@@ -62,10 +66,27 @@ html, body {
 .stage {
   grid-area: stage;
   position: relative;
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  border: 3px solid rgba(255, 207, 58, 0.55);
+  border-radius: 18px;
   overflow: hidden;
-  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.6), 0 0 30px rgba(10, 60, 90, 0.4);
+  box-shadow:
+    inset 0 0 70px rgba(0, 0, 0, 0.65),
+    0 0 0 5px rgba(8, 18, 30, 0.9),
+    0 0 36px 7px rgba(46, 230, 198, 0.5),
+    0 0 70px 12px rgba(155, 108, 255, 0.34);
+  animation: frameGlow 4.5s ease-in-out infinite alternate;
+}
+@keyframes frameGlow {
+  0% {
+    border-color: rgba(255, 207, 58, 0.6);
+    box-shadow: inset 0 0 70px rgba(0, 0, 0, 0.65), 0 0 0 5px rgba(8, 18, 30, 0.9),
+      0 0 36px 7px rgba(46, 230, 198, 0.55), 0 0 72px 12px rgba(155, 108, 255, 0.34);
+  }
+  100% {
+    border-color: rgba(255, 95, 162, 0.6);
+    box-shadow: inset 0 0 70px rgba(0, 0, 0, 0.65), 0 0 0 5px rgba(8, 18, 30, 0.9),
+      0 0 36px 7px rgba(255, 95, 162, 0.55), 0 0 72px 12px rgba(46, 230, 198, 0.34);
+  }
 }
 #screen { display: block; width: 100%; height: 100%; }
 
@@ -105,6 +126,48 @@ html, body {
 .sb-val.sb-super { color: #ffcf3a; text-shadow: 0 0 10px rgba(255, 207, 58, 0.9); }
 
 #btn-mute { background: linear-gradient(180deg, rgba(120, 140, 160, 0.22), rgba(30, 40, 55, 0.4)); font-size: 13px; }
+
+/* 구슬 박스 (1박스=1000구슬) — 양 사이드에 보유량만큼 쌓임 */
+.ballboxes {
+  position: absolute;
+  bottom: 6px;
+  width: 66px;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 3px;
+  z-index: 4;
+  pointer-events: none;
+  max-height: 92%;
+  overflow: hidden;
+}
+.ballboxes.left { left: 6px; }
+.ballboxes.right { right: 6px; }
+.ballbox {
+  width: 62px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: 1.5px solid rgba(185, 222, 255, 0.65);
+  border-radius: 4px;
+  background:
+    radial-gradient(circle at 3px 3px, rgba(224, 238, 255, 0.95) 1.6px, transparent 2.1px) 0 0 / 7px 7px,
+    linear-gradient(180deg, rgba(120, 150, 180, 0.3), rgba(85, 115, 145, 0.42));
+  box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.28), 0 1px 3px rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.bb-label {
+  font-size: 7px;
+  font-weight: 800;
+  color: #ffcf3a;
+  background: rgba(8, 18, 28, 0.78);
+  padding: 1px 3px;
+  border-radius: 2px;
+  margin-top: 2px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
 
 @media (max-width: 760px) {
   .scoreboard { gap: 2px; padding: 6px 6px; }
@@ -182,6 +245,24 @@ html, body {
   font-weight: 800;
   font-size: 14px;
   letter-spacing: 1px;
+}
+/* 슈퍼 모드 — 연속 점멸 */
+.mode-badge.super {
+  animation: superBlink 0.5s steps(1, end) infinite;
+}
+@keyframes superBlink {
+  0% {
+    background: rgba(255, 95, 162, 0.9);
+    color: #fff;
+    border-color: #ff5fa2;
+    box-shadow: 0 0 20px rgba(255, 95, 162, 0.95);
+  }
+  50% {
+    background: rgba(255, 207, 58, 0.95);
+    color: #2a1159;
+    border-color: #ffcf3a;
+    box-shadow: 0 0 24px rgba(255, 207, 58, 1);
+  }
 }
 
 .msg { font-size: 12px; color: #86b8cf; text-align: center; margin: 0; min-height: 16px; }
