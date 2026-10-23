@@ -77,6 +77,7 @@ export class Game {
   private offsets: [number, number, number] = [0.2, -0.2, 0.2];
   private stopDelay: [number, number, number] = [0.5, 0.9, 1.3];
   private issued: [boolean, boolean, boolean] = [true, true, true];
+  private landed: [boolean, boolean, boolean] = [true, true, true];
   private firstStopT = 0.45;
   private lastRow = 2;
   private winLine: LineSpec | null = null;
@@ -200,6 +201,8 @@ export class Game {
 
     const speed = this.stepX() * 11 * this.spinSpeedMul;
     for (const r of this.reels) r.startSpin(speed);
+    this.landed = [false, false, false];
+    this.audio.startReelSpin();
 
     this.phase = "spinning";
     this.pt = 0;
@@ -319,8 +322,16 @@ export class Game {
             this.issued[r] = true;
           }
         }
+        // 릴 카드가 멈추는 순간 독특한 스톱음.
+        for (let r = 0; r < 3; r++) {
+          if (!this.landed[r] && this.issued[r] && this.reels[r]!.stopped) {
+            this.landed[r] = true;
+            this.audio.reelStop(r);
+          }
+        }
         this.updateSuspense();
         if (this.reels[0].stopped && this.reels[1].stopped && this.reels[2].stopped) {
+          this.audio.stopReelSpin(); // 릴 멈추면 회전 음악도 정지
           this.resolveResult();
           this.cutinActive = false;
           this.fx.setHype(0);

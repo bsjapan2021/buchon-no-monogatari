@@ -10,6 +10,12 @@ export class AudioManager {
   private bgmGain: GainNode | null = null;
   private ambGain: GainNode | null = null;
   private bgmStep = 0;
+  // 릴 회전 사운드.
+  private reelGain: GainNode | null = null;
+  private reelOsc: OscillatorNode | null = null;
+  private reelLfo: OscillatorNode | null = null;
+  private reelSpinning = false;
+  private reelArpStep = 0;
   private muted = false;
   private started = false;
   private mode: Mode = "NORMAL";
@@ -138,6 +144,73 @@ export class AudioManager {
   pocketIn(): void {
     if (!this.master) return;
     this.blip(900, 0.07, this.master, "square", 0, 0.1);
+  }
+
+  // ---- 릴 회전 사운드 (전자 휠 + 빠른 아르페지오, 회전 중 루프) ----
+  startReelSpin(): void {
+    if (!this.ctx || !this.master || this.reelSpinning) return;
+    this.reelSpinning = true;
+    this.reelGain = this.ctx.createGain();
+    this.reelGain.gain.value = 0.16;
+    this.reelGain.connect(this.master);
+    // 전자 휠: 톱니 + 빠른 비브라토.
+    const osc = this.ctx.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.value = 200;
+    const lfo = this.ctx.createOscillator();
+    lfo.frequency.value = 20;
+    const lfoGain = this.ctx.createGain();
+    lfoGain.gain.value = 46;
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+    const oscGain = this.ctx.createGain();
+    oscGain.gain.value = 0.4;
+    osc.connect(oscGain);
+    oscGain.connect(this.reelGain);
+    osc.start();
+    lfo.start();
+    this.reelOsc = osc;
+    this.reelLfo = lfo;
+    this.scheduleReelArp();
+  }
+
+  private scheduleReelArp(): void {
+    if (!this.reelSpinning || !this.reelGain) return;
+    const notes = [0, 4, 7, 12, 7, 4];
+    const f = 440 * 2 ** (notes[this.reelArpStep % notes.length]! / 12);
+    this.blip(f, 0.1, this.reelGain, "square", 0, 0.3);
+    this.reelArpStep++;
+    window.setTimeout(() => this.scheduleReelArp(), 110);
+  }
+
+  stopReelSpin(): void {
+    if (!this.reelSpinning) return;
+    this.reelSpinning = false;
+    try {
+      this.reelOsc?.stop();
+      this.reelLfo?.stop();
+    } catch {
+      /* 이미 정지 */
+    }
+    this.reelOsc = null;
+    this.reelLfo = null;
+    const g = this.reelGain;
+    if (g && this.ctx) {
+      const t = this.ctx.currentTime;
+      g.gain.setValueAtTime(g.gain.value, t);
+      g.gain.linearRampToValueAtTime(0, t + 0.08);
+      window.setTimeout(() => g.disconnect(), 160);
+    }
+    this.reelGain = null;
+  }
+
+  /** 릴 카드 정지음 — 독특한 '착' (릴마다 피치 차등). */
+  reelStop(index: number): void {
+    if (!this.master) return;
+    this.noiseBurst(0, 0.05, 0.22);
+    const base = 540 - index * 90;
+    this.blip(base, 0.13, this.master, "square", 0, 0.3);
+    this.blip(base * 0.5, 0.1, this.master, "triangle", 0.02, 0.2);
   }
 
   reach(): void {
