@@ -339,13 +339,16 @@ export class Game {
           this.pt = 0;
         }
         break;
-      case "result":
+      case "result": {
         this.pt += dt;
-        if (this.pt > this.dur(this.outcome?.kind === "ooatari" ? 1.8 : this.outcome?.kind === "reach" ? 0.8 : 0.25)) {
+        // 리치/오아다리는 충분히 볼 수 있게 대기시간 증가.
+        const hold = this.outcome?.kind === "ooatari" ? 4.2 : this.outcome?.kind === "reach" ? 2.6 : 0.25;
+        if (this.pt > this.dur(hold)) {
           this.phase = "cooldown";
           this.pt = 0;
         }
         break;
+      }
       case "cooldown":
         this.pt += dt;
         if (this.pt > this.dur(0.2)) {

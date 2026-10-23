@@ -52,15 +52,17 @@ export interface SymbolPalette {
   text: string;
 }
 
-/** 홀수=청록 발광, 짝수=보라 발광, 7=황금 프리미엄. (PRD §1.2) */
+/** 짝수=파란 배경(통상), 홀수=빨간 배경(확변), 7=황금 프리미엄. */
 export function paletteFor(id: number): SymbolPalette {
   if (id === 7) {
     return { core: "#fff4c2", edge: "#e8a81e", glow: "#ffcf3a", text: "#5a3b00" };
   }
   if (id % 2 === 1) {
-    return { core: "#d6fff6", edge: "#0f8f7e", glow: "#2ee6c6", text: "#063b34" };
+    // 홀수 = 빨강
+    return { core: "#ffe0e0", edge: "#b81c1c", glow: "#ff4d4d", text: "#4a0505" };
   }
-  return { core: "#efe2ff", edge: "#6b3fd4", glow: "#9b6cff", text: "#2a1159" };
+  // 짝수 = 파랑
+  return { core: "#dbe9ff", edge: "#1b4fb5", glow: "#3b82f6", text: "#06204a" };
 }
 
 /**

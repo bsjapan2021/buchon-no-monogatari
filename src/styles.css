@@ -25,7 +25,7 @@ html, body {
 
 #app {
   display: grid;
-  grid-template-columns: 1fr 300px;
+  grid-template-columns: 1fr minmax(230px, 300px);
   grid-template-rows: auto 1fr;
   grid-template-areas: "top top" "stage hud";
   height: 100vh;
@@ -126,23 +126,21 @@ html, body {
 .sb-val.sb-super { color: #ffcf3a; text-shadow: 0 0 10px rgba(255, 207, 58, 0.9); }
 
 #btn-mute { background: linear-gradient(180deg, rgba(120, 140, 160, 0.22), rgba(30, 40, 55, 0.4)); font-size: 13px; }
+#btn-lang { background: linear-gradient(180deg, rgba(255, 207, 58, 0.22), rgba(80, 55, 10, 0.4)); font-size: 13px; color: #ffe08a; }
 
 /* 구슬 박스 (1박스=1000구슬) — 양 사이드에 보유량만큼 쌓임 */
 .ballboxes {
   position: absolute;
   bottom: 6px;
-  width: 66px;
   display: flex;
-  flex-direction: column-reverse;
-  align-items: center;
-  gap: 3px;
+  flex-flow: column-reverse wrap;
+  max-height: 90%;
+  gap: 3px 4px;
   z-index: 4;
   pointer-events: none;
-  max-height: 92%;
-  overflow: hidden;
 }
-.ballboxes.left { left: 6px; }
-.ballboxes.right { right: 6px; }
+.ballboxes.left { left: 6px; align-content: flex-start; }
+.ballboxes.right { right: 6px; align-content: flex-end; }
 .ballbox {
   width: 62px;
   height: 32px;
@@ -168,6 +166,15 @@ html, body {
   letter-spacing: 0.2px;
   white-space: nowrap;
 }
+/* 빨강 박스 = 3000개 교환 */
+.ballbox.red {
+  border-color: rgba(255, 120, 120, 0.85);
+  background:
+    radial-gradient(circle at 3px 3px, rgba(255, 222, 222, 0.95) 1.6px, transparent 2.1px) 0 0 / 7px 7px,
+    linear-gradient(180deg, rgba(205, 60, 60, 0.55), rgba(150, 28, 28, 0.65));
+  box-shadow: inset 0 0 6px rgba(255, 185, 185, 0.3), 0 1px 3px rgba(0, 0, 0, 0.45), 0 0 9px rgba(255, 80, 80, 0.55);
+}
+.ballbox.red .bb-label { color: #fff; background: rgba(120, 10, 10, 0.82); }
 
 @media (max-width: 760px) {
   .scoreboard { gap: 2px; padding: 6px 6px; }
@@ -267,6 +274,29 @@ html, body {
 
 .msg { font-size: 12px; color: #86b8cf; text-align: center; margin: 0; min-height: 16px; }
 
+@media (max-width: 1024px) {
+  #app { grid-template-columns: 1fr minmax(195px, 240px); }
+  .hud { padding: 10px; gap: 8px; }
+  .counters li { font-size: 13px; }
+  .topbar h1 { font-size: 22px; letter-spacing: 2px; }
+}
 @media (max-width: 760px) {
-  #app { grid-template-columns: 1fr; grid-template-areas: "top" "stage" "hud"; }
+  html, body { overflow: auto; }
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    grid-template-areas: "top" "stage" "hud";
+    height: auto;
+    min-height: 100vh;
+  }
+  .stage { height: 58vh; min-height: 320px; }
+  .hud { max-height: none; }
+  .ballboxes { width: auto; max-width: 92px; }
+  .ballbox { width: 42px; height: 24px; }
+  .scoreboard { transform: translateX(-50%) scale(0.86); }
+}
+@media (max-width: 460px) {
+  .stage { height: 52vh; }
+  .ballbox { width: 34px; height: 20px; }
+  .bb-label { font-size: 6px; }
 }
