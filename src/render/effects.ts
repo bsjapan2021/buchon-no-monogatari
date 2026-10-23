@@ -45,6 +45,11 @@ export class Effects {
   private splitActive = false;
   private splitColor = "#ffcf3a";
 
+  /** 불꽃놀이(연속 폭죽). */
+  private shells: { x: number; y: number; vy: number; targetY: number; color: string }[] = [];
+  private fireworksT = 0;
+  private fwTimer = 0;
+
   cutin: { text: string; sub: string; color: string; a: number; t: number } | null = null;
 
   constructor(private w: number, private h: number) {
@@ -97,6 +102,44 @@ export class Effects {
         life: 1,
         maxLife: 0.6 + Math.random() * 0.9,
         color,
+      });
+    }
+  }
+
+  // ---- 불꽃놀이 (연속 형형색색 폭죽) ----
+  private static FW_COLORS = ["#ff5fa2", "#ffcf3a", "#2ee6c6", "#9b6cff", "#ff7b4d", "#6cff9b", "#4db8ff", "#ff4d4d", "#ffffff"];
+
+  /** duration초 동안 폭죽을 연속 발사한다. */
+  startFireworks(duration: number): void {
+    this.fireworksT = Math.max(this.fireworksT, duration);
+  }
+
+  private launchShell(): void {
+    const color = Effects.FW_COLORS[(Math.random() * Effects.FW_COLORS.length) | 0]!;
+    this.shells.push({
+      x: this.w * (0.12 + Math.random() * 0.76),
+      y: this.h,
+      vy: -(this.h * 1.25 + Math.random() * this.h * 0.55),
+      targetY: this.h * (0.1 + Math.random() * 0.4),
+      color,
+    });
+  }
+
+  private explode(x: number, y: number, color: string): void {
+    const n = 34 + ((Math.random() * 16) | 0);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.2;
+      const sp = 110 + Math.random() * 280;
+      const c = Math.random() < 0.55 ? color : Effects.FW_COLORS[(Math.random() * Effects.FW_COLORS.length) | 0]!;
+      this.burstP.push({
+        x,
+        y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp,
+        r: 2 + Math.random() * 3.5,
+        life: 1,
+        maxLife: 0.8 + Math.random() * 0.9,
+        color: c,
       });
     }
   }
@@ -183,6 +226,20 @@ export class Effects {
     }
     this.burstP = this.burstP.filter((p) => p.life < p.maxLife);
 
+    // 불꽃놀이: 연속 발사 + 상승 + 폭발.
+    if (this.fireworksT > 0) {
+      this.fireworksT -= dt;
+      this.fwTimer -= dt;
+      if (this.fwTimer <= 0) {
+        this.fwTimer = 0.12 + Math.random() * 0.16;
+        this.launchShell();
+        if (Math.random() < 0.4) this.launchShell();
+      }
+    }
+    for (const s of this.shells) s.y += s.vy * dt;
+    for (const s of this.shells) if (s.y <= s.targetY) this.explode(s.x, s.y, s.color);
+    this.shells = this.shells.filter((s) => s.y > s.targetY);
+
     for (const b of this.beams) b.life += dt;
     this.beams = this.beams.filter((b) => b.life < b.maxLife);
 
@@ -213,8 +270,21 @@ export class Effects {
     for (const p of this.burstP) {
       ctx.globalAlpha = Math.max(0, 1 - p.life / p.maxLife);
       ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 8;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    // 상승하는 폭죽 쉘.
+    for (const s of this.shells) {
+      ctx.globalAlpha = 0.95;
+      ctx.fillStyle = s.color;
+      ctx.shadowColor = s.color;
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 3, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();

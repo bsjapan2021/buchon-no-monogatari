@@ -1,32 +1,59 @@
-// 결과·모드 컨트롤러 — ST식 보너스 모드.
-// 당첨 판정: 가로·세로·대각선 3개 같은 수가 정위치 정렬 → 짝수=리치, 홀수=오아다리(슈퍼리치).
-// 모드: 일반(NORMAL) / 슈퍼(SUPER). 100회 윈도우로 보장·반복·복귀.
+// 결과·모드 컨트롤러 — 파친코 확률 스펙(장르 공통 수치).
+// 통상(NORMAL) / 確変(KAKUHEN, 電サポ) / 時短(JITAN, 電サポ) + RUSH 루프.
+// 당첨 도안: 짝수=파랑(통상 계열), 홀수=빨강(확변 계열).
+// 주: 특정 상용기종의 고유 연출명/상표는 사용하지 않는다. 수치만 참조.
 
-export type SpinKind = "none" | "reach" | "ooatari"; // 리치(짝수) / 오아다리(홀수)
-export type Mode = "NORMAL" | "SUPER";
+export type SpinKind = "none" | "reach" | "ooatari"; // reach=짝수(통상), ooatari=홀수(확변)
+export type Mode = "NORMAL" | "KAKUHEN" | "JITAN";
 export type LineKind = "row" | "col" | "diag";
 
 export interface LineSpec {
   kind: LineKind;
-  index: number; // row:0~2, col:0~2, diag:0(\) 1(/)
+  index: number;
 }
 
 export interface Outcome {
   kind: SpinKind;
-  number: number; // 정렬 숫자 (리치=짝수 / 오아다리=홀수), none이면 0
+  number: number;
   line: LineSpec | null;
-  mode: Mode;
+  round: number; // 10 | 2 | 0
+  payout: number; // 구슬
+  mode: Mode; // 전이 후 상태
+  modeKey: string; // normal | kakuhen | jitan | rush
+  special: boolean; // 電サポ(비통상)
+  jitanLeft: number; // 時短 잔여
   windowSpin: number;
-  continued: boolean; // 오아다리 후 연장 여부
+  continued: boolean;
 }
 
-const WINDOW = 100;
-const CONTINUE_RATE = 0.8; // 슈퍼 연장 확률(ST 계속률)
+const DENOM = 65536;
+// 통상/시단 대당첨 확률 — 데모 플레이성을 위해 상향(실기 스펙 1/319.6). 확변은 실기 근사.
+const P_NORMAL = Math.round(DENOM / 90);
+const P_KAKUHEN = Math.round(DENOM / 31.9);
+
+interface RoundDef {
+  round: number;
+  kakuhen: boolean;
+  w: number;
+}
+// ヘ소(상단 입상) 배분: 10R통상 40 / 10R확변 40 / 2R확변 20 → 확변 60%.
+const HESO: RoundDef[] = [
+  { round: 10, kakuhen: false, w: 40 },
+  { round: 10, kakuhen: true, w: 40 },
+  { round: 2, kakuhen: true, w: 20 },
+];
+// 電サポ 중 입상 배분: 10R통상 40 / 10R확변 52 / 2R확변 8 → 확변 60%.
+const DENCHU: RoundDef[] = [
+  { round: 10, kakuhen: false, w: 40 },
+  { round: 10, kakuhen: true, w: 52 },
+  { round: 2, kakuhen: true, w: 8 },
+];
 
 export class OutcomeController {
   private mode: Mode = "NORMAL";
+  private jitanLeft = 0;
+  private rush = false; // 時短200 루프 (2R확변 등으로 진입)
   private windowSpin = 0;
-  private windowHit = false; // 이 윈도우에서 리치/오아다리 발생
   private rng: () => number;
 
   constructor(rng: () => number = Math.random) {
@@ -36,62 +63,86 @@ export class OutcomeController {
   getMode(): Mode {
     return this.mode;
   }
+  isDenpo(): boolean {
+    return this.mode !== "NORMAL";
+  }
   getWindowSpin(): number {
     return this.windowSpin;
   }
 
   next(): Outcome {
     this.windowSpin++;
-    const atLimit = this.windowSpin >= WINDOW;
-    let kind: SpinKind = "none";
+    const denpo = this.mode !== "NORMAL";
+    const p = this.mode === "KAKUHEN" ? P_KAKUHEN : P_NORMAL;
+    const hit = this.rng() * DENOM < p;
 
-    if (this.mode === "SUPER") {
-      // 오아다리 고확률 + 윈도우 말미로 갈수록 급상승(100회 내 보장).
-      const p = Math.min(1, 0.3 + (this.windowSpin / WINDOW) * 0.7);
-      if (this.rng() < p) kind = "ooatari";
-      else if (this.rng() < 0.12) kind = "reach";
-    } else {
-      // 일반: 피처(리치/오아다리) 저확률. 피처 발생 시 오아다리 비중 높게.
-      const feature = this.rng() < 0.06 || (atLimit && !this.windowHit);
-      if (feature) kind = this.rng() < 0.45 ? "ooatari" : "reach";
-    }
-
-    let number = 0;
-    let line: LineSpec | null = null;
-    if (kind !== "none") {
-      number = kind === "ooatari" ? this.pick([1, 3, 5, 7, 9]) : this.pick([2, 4, 6, 8]);
-      line = this.randomLine();
-      this.windowHit = true;
-    }
-
-    let continued = false;
-    // 모드 전이.
-    if (kind === "ooatari") {
-      if (this.mode === "NORMAL") {
-        this.mode = "SUPER";
-        this.resetWindow();
-      } else {
-        continued = this.rng() < CONTINUE_RATE;
-        if (continued) this.resetWindow();
-        else {
+    if (!hit) {
+      if (this.mode === "JITAN") {
+        this.jitanLeft--;
+        if (this.jitanLeft <= 0) {
           this.mode = "NORMAL";
-          this.resetWindow();
+          this.rush = false;
+          this.windowSpin = 0;
         }
       }
-    } else if (kind === "reach") {
-      this.resetWindow(); // 반복(윈도우 갱신)
-    } else if (atLimit) {
-      // 빈 윈도우 — 슈퍼면 일반 복귀.
-      if (this.mode === "SUPER") this.mode = "NORMAL";
-      this.resetWindow();
+      return this.make("none", 0, null, 0, 0, false);
     }
 
-    return { kind, number, line, mode: this.mode, windowSpin: this.windowSpin, continued };
+    // 대당첨 — 라운드 배분.
+    const pick = this.weighted(denpo ? DENCHU : HESO);
+    const round = pick.round;
+    const payout = round === 10 ? 1500 : 60;
+    const kakuhen = pick.kakuhen;
+    const continued = denpo;
+    if (round === 2 && kakuhen) this.rush = true; // 2R확변 → RUSH 진입
+
+    if (kakuhen) {
+      this.mode = "KAKUHEN";
+      this.jitanLeft = 0;
+    } else {
+      this.mode = "JITAN";
+      this.jitanLeft = this.rush ? 200 : 100;
+    }
+    this.windowSpin = 0;
+
+    const kind: SpinKind = kakuhen ? "ooatari" : "reach";
+    const number = kakuhen ? this.pick([1, 3, 5, 7, 9]) : this.pick([2, 4, 6, 8]);
+    return this.make(kind, number, this.randomLine(), round, payout, continued);
   }
 
-  private resetWindow(): void {
-    this.windowSpin = 0;
-    this.windowHit = false;
+  private make(
+    kind: SpinKind,
+    number: number,
+    line: LineSpec | null,
+    round: number,
+    payout: number,
+    continued: boolean,
+  ): Outcome {
+    const key =
+      this.mode === "NORMAL" ? "normal" : this.rush ? "rush" : this.mode === "KAKUHEN" ? "kakuhen" : "jitan";
+    return {
+      kind,
+      number,
+      line,
+      round,
+      payout,
+      mode: this.mode,
+      modeKey: key,
+      special: this.mode !== "NORMAL",
+      jitanLeft: this.jitanLeft,
+      windowSpin: this.windowSpin,
+      continued,
+    };
+  }
+
+  private weighted(table: RoundDef[]): RoundDef {
+    const total = table.reduce((s, d) => s + d.w, 0);
+    let r = this.rng() * total;
+    for (const d of table) {
+      if (r < d.w) return d;
+      r -= d.w;
+    }
+    return table[table.length - 1]!;
   }
 
   private pick(arr: number[]): number {

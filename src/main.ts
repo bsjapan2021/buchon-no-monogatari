@@ -18,7 +18,8 @@ const I18N: Record<Lang, Record<string, string>> = {
     fire: "구슬 발사 / 정지 (Space)", skip: "스킵 (S)", lang: "日本語",
     sb_spins: "회전", sb_held: "구슬", sb_reach: "금일 리치", sb_super: "금일 大当たり",
     hint: "왼쪽 아래에서 구슬 발사 → 못에 튕겨 입상 → 숫자 회전",
-    mode_normal: "일반", mode_super: "슈퍼", mode_suffix: " 모드",
+    mode_normal: "통상", mode_kakuhen: "確変", mode_jitan: "時短", mode_rush: "RUSH", mode_suffix: " 모드",
+    mute_on: "🔊 소리 켜짐 (M)", mute_off: "🔇 소리 꺼짐 (M)",
   },
   ja: {
     held: "持ち玉", launched: "発射数", pending: "保留(入賞)",
@@ -27,9 +28,13 @@ const I18N: Record<Lang, Record<string, string>> = {
     fire: "玉発射 / 停止 (Space)", skip: "スキップ (S)", lang: "한국어",
     sb_spins: "回転", sb_held: "持ち玉", sb_reach: "本日リーチ", sb_super: "本日大当たり",
     hint: "左下から玉発射 → 釘に弾かれ入賞 → 数字回転",
-    mode_normal: "通常", mode_super: "スーパー", mode_suffix: "モード",
+    mode_normal: "通常", mode_kakuhen: "確変", mode_jitan: "時短", mode_rush: "RUSH", mode_suffix: "モード",
+    mute_on: "🔊 サウンドON (M)", mute_off: "🔇 サウンドOFF (M)",
   },
 };
+let lastMode = "normal";
+let lastSpecial = false;
+let lastMuted = false;
 function applyLang(): void {
   document.querySelectorAll<HTMLElement>("[data-i18n]").forEach((e) => {
     const k = e.dataset.i18n;
@@ -37,18 +42,26 @@ function applyLang(): void {
     if (v) e.textContent = v;
   });
   document.documentElement.lang = lang;
+  renderMode();
+  updateMuteBtn(lastMuted);
 }
 el("btn-lang").addEventListener("click", () => {
   lang = lang === "ko" ? "ja" : "ko";
   applyLang();
 });
 
+function renderMode(): void {
+  const label = I18N[lang][`mode_${lastMode}`] ?? I18N[lang].mode_normal!;
+  el("h-mode").textContent = label!;
+  el("h-modebadge").textContent = label! + I18N[lang].mode_suffix!;
+  el("h-modebadge").classList.toggle("super", lastSpecial);
+}
+
 game.onHud = (h: HudData) => {
-  const mk = h.mode === "슈퍼" ? "mode_super" : "mode_normal";
-  el("h-mode").textContent = I18N[lang][mk]!;
-  el("h-modebadge").textContent = I18N[lang][mk]! + I18N[lang].mode_suffix!;
-  el("h-modebadge").classList.toggle("super", h.mode === "슈퍼");
-  el("h-window").textContent = h.windowSpin > 0 ? `${h.windowSpin}/100 회전` : "";
+  lastMode = h.mode;
+  lastSpecial = h.special;
+  renderMode();
+  el("h-window").textContent = h.special && h.windowSpin > 0 ? `時短 ${h.windowSpin}` : "";
   const held = el("h-held");
   held.textContent = fmt(h.held);
   held.style.color = h.held > 0 ? "var(--teal)" : "#ff8a8a";
@@ -101,7 +114,8 @@ el("btn-fire").addEventListener("click", () => game.toggleAuto());
 el("btn-skip").addEventListener("click", () => game.requestSkip());
 
 const updateMuteBtn = (muted: boolean) => {
-  el("btn-mute").textContent = muted ? "🔇 소리 꺼짐 (M)" : "🔊 소리 켜짐 (M)";
+  lastMuted = muted;
+  el("btn-mute").textContent = muted ? I18N[lang].mute_off! : I18N[lang].mute_on!;
 };
 el("btn-mute").addEventListener("click", () => updateMuteBtn(game.toggleMute()));
 

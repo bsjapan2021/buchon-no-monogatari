@@ -14,6 +14,7 @@ export interface HudData {
   launched: number;
   pending: number;
   mode: string;
+  special: boolean;
   windowSpin: number;
   ooatari: number;
   reachCount: number;
@@ -66,6 +67,7 @@ export class Game {
   private launching = false;
   private launchTimer = 0;
   private pendingSpins = 0;
+  private denpoTimer = 0; // 電サポ(확변/시단) 자동회전 타이머
 
   // 현재 스핀 상태.
   private outcome: Outcome | null = null;
@@ -100,7 +102,8 @@ export class Game {
     held: 1000,
     launched: 0,
     pending: 0,
-    mode: "일반",
+    mode: "normal",
+    special: false,
     windowSpin: 0,
     ooatari: 0,
     reachCount: 0,
@@ -187,8 +190,8 @@ export class Game {
   private startSpin(): void {
     const out = this.controller.next();
     this.outcome = out;
-    // 입상 보류가 밀려도 리치/오아다리는 스킵하지 않고 끝까지 연출(징조 보장).
-    this.skip = this.pendingSpins > 2 && out.kind === "none";
+    // 꽝은 보류가 밀리거나 電サポ 중이면 빠르게, 리치/오아다리는 끝까지 연출.
+    this.skip = (this.pendingSpins > 2 || out.special) && out.kind === "none";
     this.winGlow = 0;
     this.winLine = null;
     this.fx.setHype(0);
@@ -298,11 +301,22 @@ export class Game {
       this.emit();
     }
 
-    // 입상 보류 → 릴 회전.
-    if (this.phase === "idle" && this.pendingSpins > 0) {
-      this.pendingSpins--;
-      this.hud.pending = this.pendingSpins;
-      this.startSpin();
+    // 릴 회전 트리거. 電サポ(확변/시단)는 전동 서포트로 자동회전, 통상은 입상 보류로.
+    if (this.phase === "idle") {
+      if (this.controller.isDenpo()) {
+        this.denpoTimer += dt;
+        if (this.denpoTimer >= 0.7) {
+          this.denpoTimer = 0;
+          this.startSpin();
+        }
+      } else {
+        this.denpoTimer = 0;
+        if (this.pendingSpins > 0) {
+          this.pendingSpins--;
+          this.hud.pending = this.pendingSpins;
+          this.startSpin();
+        }
+      }
     }
 
     switch (this.phase) {
@@ -403,17 +417,18 @@ export class Game {
       this.reachStreak = 0;
       this.playVideo("11");
       this.audio.ooatari();
+      this.fx.startFireworks(5); // 형형색색 폭죽 연속
       this.fx.startSplit("#ffcf3a", 0.95);
       this.fx.flash(pal.glow, 0.95);
       this.fx.shake(1.3, 0.9);
       this.fx.burst(center.x, center.y, pal.glow, 170);
       this.winLine = out.line;
       this.winGlow = 1;
-      const payout = 1500;
+      const payout = out.payout;
       this.held += payout;
       this.hud.ooatari++;
-      this.fx.showCutin("大当たり / 오아다리!!", `${out.number} 홀수 정렬 +${payout}구슬`, pal.glow);
-      this.hud.message = `大当たり(오아다리)! ${out.number} 정렬 (+${payout}) ${out.continued ? "[연장]" : ""}`;
+      this.fx.showCutin("大当たり / 오아다리!!", `${out.round}R 確変 +${payout}구슬`, pal.glow);
+      this.hud.message = `大当たり(오아다리)! ${out.round}R確変 (+${payout}) ${out.continued ? "[연장]" : ""}`;
     } else if (out.kind === "reach") {
       const pal = paletteFor(out.number);
       // 2회 이상 연속 리치 → 12.mov 재생.
@@ -425,21 +440,22 @@ export class Game {
       this.fx.burst(center.x, center.y, pal.glow, 60);
       this.winLine = out.line;
       this.winGlow = 0.7;
-      const payout = 300;
+      const payout = out.payout;
       this.held += payout;
       this.hud.reachCount++;
-      this.fx.showCutin("リーチ / 리치!", `${out.number} 짝수 정렬 +${payout}구슬`, pal.glow);
-      this.hud.message = `リーチ(리치)! ${out.number} 정렬 (+${payout})`;
+      this.fx.showCutin("リーチ / 리치!", `${out.round}R 通常 +${payout}구슬`, pal.glow);
+      this.hud.message = `リーチ(리치)! ${out.round}R通常 (+${payout})`;
     } else {
       this.winLine = null;
       this.winGlow = 0;
       this.reachStreak = 0;
       this.hud.message = "꽝";
     }
-    this.audio.setMode(out.mode);
+    this.audio.setMode(out.special ? "SUPER" : "NORMAL");
     this.hud.held = this.held;
-    this.hud.mode = out.mode === "SUPER" ? "슈퍼" : "일반";
-    this.hud.windowSpin = this.controller.getWindowSpin();
+    this.hud.mode = out.modeKey;
+    this.hud.special = out.special;
+    this.hud.windowSpin = out.jitanLeft;
     this.emit();
   }
 
@@ -494,7 +510,7 @@ export class Game {
     const off = this.fx.shakeOffset();
     ctx.save();
     ctx.clearRect(0, 0, this.w, this.h);
-    drawBackground(ctx, this.w, this.h, this.time, this.controller.getMode() === "SUPER" ? "ST" : "NORMAL");
+    drawBackground(ctx, this.w, this.h, this.time, this.controller.isDenpo() ? "ST" : "NORMAL");
     this.fx.drawParticles(ctx);
 
     ctx.translate(off.x, off.y);
@@ -511,7 +527,7 @@ export class Game {
     // 릴 프레임.
     ctx.save();
     ctx.fillStyle = "rgba(2,16,28,0.6)";
-    ctx.strokeStyle = this.controller.getMode() === "SUPER" ? "rgba(200,150,255,0.7)" : "rgba(130,220,255,0.55)";
+    ctx.strokeStyle = this.controller.isDenpo() ? "rgba(255,120,120,0.75)" : "rgba(130,220,255,0.55)";
     ctx.lineWidth = 3;
     roundRect(ctx, pr.x, pr.y, pr.w, pr.h, 16);
     ctx.fill();
