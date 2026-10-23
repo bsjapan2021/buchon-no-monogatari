@@ -1,0 +1,21 @@
+{
+  "name": "abyss-lumina",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "ABYSS LUMINA — 오리지널 심해 테마 빠칭코 확률 시뮬레이터 (웹)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "sim": "tsx src/sim/cli.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "abyss_max",
+  "name": "ABYSS LUMINA MAX",
+  "denominator": 65536,
+  "normalHitRanges": 205,
+  "stHitRanges": 656,
+  "stSpins": 130,
+  "jidanSpins": 100,
+  "ballsPerRound": 150,
+  "hesoDistribution": [
+    { "round": 10, "weight": 50, "next": "ST" },
+    { "round": 3, "weight": 50, "next": "JIDAN" }
+  ],
+  "dendoDistribution": [
+    { "round": 10, "weight": 100, "next": "ST" }
+  ]
+}

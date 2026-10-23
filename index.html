@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ブチョンの物語 — 심해 파친코 확률 시뮬레이터</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <h1>ブチョンの<span>物語</span></h1>
+        <div class="mode-badge" id="h-modebadge">일반 모드</div>
+      </header>
+
+      <main class="stage">
+        <div class="scoreboard" id="scoreboard">
+          <div class="sb-item"><span class="sb-label">회전</span><b class="sb-val" id="sb-spins">0</b></div>
+          <div class="sb-item"><span class="sb-label">구슬</span><b class="sb-val" id="sb-held">1,000</b></div>
+          <div class="sb-item"><span class="sb-label">금일 리치</span><b class="sb-val" id="sb-reach">0</b></div>
+          <div class="sb-item"><span class="sb-label">금일 슈퍼리치</span><b class="sb-val sb-super" id="sb-super">0</b></div>
+        </div>
+        <canvas id="screen"></canvas>
+      </main>
+
+      <aside class="hud">
+        <div class="status">
+          <div class="st-state"><span id="h-mode">일반</span><small id="h-window"></small></div>
+        </div>
+        <ul class="counters">
+          <li class="diff"><span>보유 구슬</span><b id="h-held">1,000</b></li>
+          <li><span>총 발사</span><b id="h-launched">0</b></li>
+          <li><span>보류(입상)</span><b id="h-pending">0</b></li>
+          <li><span>大当たり(홀수)</span><b id="h-ooatari">0</b></li>
+          <li><span>리치(짝수)</span><b id="h-reach">0</b></li>
+          <li><span>총 회전수</span><b id="h-spins">0</b></li>
+        </ul>
+
+        <div class="sliders">
+          <label>회전 속도 <span id="v-speed">1.0×</span>
+            <input type="range" id="s-speed" min="0.3" max="2.5" step="0.1" value="1" />
+          </label>
+          <label>멈춤 시간 <span id="v-stop">1.0×</span>
+            <input type="range" id="s-stop" min="0.3" max="2.5" step="0.1" value="1" />
+          </label>
+        </div>
+
+        <div class="controls">
+          <button id="btn-fire">구슬 발사 / 정지 (Space)</button>
+          <button id="btn-skip">스킵 (S)</button>
+          <button id="btn-mute">🔊 소리 켜짐 (M)</button>
+        </div>
+        <p class="msg" id="h-msg">왼쪽 아래에서 구슬 발사 → 못에 튕겨 입상 → 숫자 회전</p>
+      </aside>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

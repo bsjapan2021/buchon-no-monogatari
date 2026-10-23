@@ -1,0 +1,17 @@
+{
+  "id": "abyss_mid",
+  "name": "ABYSS LUMINA MID",
+  "denominator": 65536,
+  "normalHitRanges": 328,
+  "stHitRanges": 656,
+  "stSpins": 100,
+  "jidanSpins": 80,
+  "ballsPerRound": 150,
+  "hesoDistribution": [
+    { "round": 10, "weight": 55, "next": "ST" },
+    { "round": 4, "weight": 45, "next": "JIDAN" }
+  ],
+  "dendoDistribution": [
+    { "round": 10, "weight": 100, "next": "ST" }
+  ]
+}

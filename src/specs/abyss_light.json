@@ -1,0 +1,17 @@
+{
+  "id": "abyss_light",
+  "name": "ABYSS LUMINA LIGHT",
+  "denominator": 65536,
+  "normalHitRanges": 656,
+  "stHitRanges": 820,
+  "stSpins": 80,
+  "jidanSpins": 60,
+  "ballsPerRound": 150,
+  "hesoDistribution": [
+    { "round": 7, "weight": 60, "next": "ST" },
+    { "round": 3, "weight": 40, "next": "JIDAN" }
+  ],
+  "dendoDistribution": [
+    { "round": 7, "weight": 100, "next": "ST" }
+  ]
+}
