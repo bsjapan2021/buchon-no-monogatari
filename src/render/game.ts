@@ -204,11 +204,17 @@ export class Game {
     return this.audio.toggleMute();
   }
 
+  /** 외부(스케일 변경 등)에서 재레이아웃을 강제. */
+  relayout(): void {
+    this.resize();
+  }
+
   private resize(): void {
     this.dpr = Math.min(2, window.devicePixelRatio || 1);
+    // clientWidth/Height = 레이아웃(변형 전) 크기 → CSS transform:scale 로 축소돼도 설계 해상도로 렌더.
     const rect = this.canvas.getBoundingClientRect();
-    this.w = rect.width;
-    this.h = rect.height;
+    this.w = this.canvas.clientWidth || rect.width;
+    this.h = this.canvas.clientHeight || rect.height;
     this.canvas.width = Math.floor(this.w * this.dpr);
     this.canvas.height = Math.floor(this.h * this.dpr);
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);

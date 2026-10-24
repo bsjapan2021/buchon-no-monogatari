@@ -181,10 +181,10 @@ html, body {
 .ballbox.red .bb-label { color: #fff; background: rgba(120, 10, 10, 0.82); }
 
 @media (max-width: 760px) {
-  .scoreboard { gap: 2px; padding: 6px 6px; }
-  .sb-item { min-width: 58px; padding: 2px 4px; }
-  .sb-val { font-size: 18px; }
-  .sb-label { font-size: 9px; }
+  body:not(.scaled) .scoreboard { gap: 2px; padding: 6px 6px; }
+  body:not(.scaled) .sb-item { min-width: 58px; padding: 2px 4px; }
+  body:not(.scaled) .sb-val { font-size: 18px; }
+  body:not(.scaled) .sb-label { font-size: 9px; }
 }
 
 .hud {
@@ -281,30 +281,25 @@ html, body {
 .msg { font-size: 12px; color: #86b8cf; text-align: center; margin: 0; min-height: 16px; }
 .license { font-size: 9px; color: #5e7f95; text-align: center; margin: 6px 0 0; line-height: 1.4; }
 
+/* 비축소(일반 데스크탑/태블릿) 전용 반응형 — 축소 모드에선 적용 안 함. */
 @media (max-width: 1024px) {
-  #app { grid-template-columns: 1fr minmax(195px, 240px); }
-  .hud { padding: 10px; gap: 8px; }
-  .counters li { font-size: 13px; }
-  .topbar h1 { font-size: 22px; letter-spacing: 2px; }
+  body:not(.scaled) #app { grid-template-columns: 1fr minmax(195px, 240px); }
+  body:not(.scaled) .hud { padding: 10px; gap: 8px; }
+  body:not(.scaled) .counters li { font-size: 13px; }
+  body:not(.scaled) .topbar h1 { font-size: 22px; letter-spacing: 2px; }
 }
-/* 좁은 가로 화면(모바일 가로모드 등) — PC와 동일한 좌우 배치 유지, 축소만. */
-@media (orientation: landscape) and (max-height: 560px) {
-  #app { grid-template-columns: 1fr minmax(150px, 190px); gap: 6px; padding: 6px; }
-  .topbar { padding: 2px 8px; }
-  .topbar h1 { font-size: 18px; letter-spacing: 1px; }
-  .hud { padding: 6px; gap: 4px; }
-  .hud .status { padding-bottom: 4px; }
-  .st-state span { font-size: 16px; }
-  .counters { gap: 2px; }
-  .counters li { font-size: 10px; padding-bottom: 2px; }
-  .sliders { gap: 4px; padding: 3px 0; }
-  .sliders label { font-size: 10px; }
-  .sliders input[type="range"] { height: 14px; }
-  .controls { gap: 4px; }
-  .controls button { padding: 5px; font-size: 11px; }
-  .license { font-size: 7px; line-height: 1.3; }
-  .scoreboard { transform: translateX(-50%) scale(0.78); padding: 5px 8px; }
-  .ballbox { width: 44px; height: 24px; }
+
+/* 축소 모드(모바일 가로 등): 데스크탑 레이아웃(고정 설계 크기)을 통째로 축소해 PC와 동일하게. */
+body.scaled {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+body.scaled #app {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform-origin: center center; /* width/height/transform(scale)은 JS에서 설정 */
 }
 
 /* 세로모드(모바일) — 게임이 제대로 동작하지 않으므로 가로 회전 안내. */

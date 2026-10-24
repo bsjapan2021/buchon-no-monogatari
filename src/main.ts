@@ -146,6 +146,32 @@ window.addEventListener("keydown", (e) => {
 
 applyLang();
 
+// ---- 모바일 가로: 데스크탑 레이아웃을 통째로 축소(scale-to-fit) → PC와 동일 ----
+const DESIGN_W = 1480; // PC 데스크탑과 동일한 설계 크기(모든 요소가 들어오는 비율)
+const DESIGN_H = 760;
+const appEl = el("app");
+function applyScale(): void {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const scaleMode = vw > vh && vh < 600; // 가로 + 낮은 높이(모바일 가로 등)
+  if (scaleMode) {
+    document.body.classList.add("scaled");
+    const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+    appEl.style.width = `${DESIGN_W}px`;
+    appEl.style.height = `${DESIGN_H}px`;
+    appEl.style.transform = `translate(-50%, -50%) scale(${s})`;
+  } else {
+    document.body.classList.remove("scaled");
+    appEl.style.width = "";
+    appEl.style.height = "";
+    appEl.style.transform = "";
+  }
+  game.relayout();
+}
+window.addEventListener("resize", applyScale);
+window.addEventListener("orientationchange", applyScale);
+applyScale();
+
 // ---- 메인 루프 ----
 let last = performance.now();
 function frame(now: number): void {
