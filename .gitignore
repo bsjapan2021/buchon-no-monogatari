@@ -3,6 +3,8 @@ dist/
 .cache/
 *.log
 .DS_Store
+.env
+.env.local
 
 # 원본 소재(런타임 불필요) — 루트의 이미지/영상. 가공본은 src/assets/ 에 있음.
 /*.png

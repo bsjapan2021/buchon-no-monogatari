@@ -1,0 +1,286 @@
+/* 로그인/스플래시/관리자 콘솔 */
+#gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% -10%, #0a3850, #04121c 60%);
+  transition: opacity 0.5s ease;
+}
+#gate.done {
+  opacity: 0;
+  pointer-events: none;
+}
+#gate-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.gate-scrim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(4, 18, 28, 0.35), rgba(4, 18, 28, 0.82));
+}
+.gate-lang {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 3;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 220, 255, 0.4);
+  background: rgba(10, 60, 90, 0.6);
+  color: #ffcf3a;
+  font-weight: 800;
+  cursor: pointer;
+}
+.gate-card {
+  position: relative;
+  z-index: 2;
+  width: min(92vw, 380px);
+  padding: 26px 24px 20px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(8, 24, 38, 0.9), rgba(6, 18, 30, 0.92));
+  border: 1px solid rgba(120, 220, 255, 0.35);
+  box-shadow: 0 0 46px rgba(46, 230, 198, 0.28), 0 0 90px rgba(155, 108, 255, 0.22);
+  backdrop-filter: blur(4px);
+  text-align: center;
+}
+.gate-title {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: 2px;
+  color: #2ee6c6;
+  text-shadow: 0 0 20px rgba(46, 230, 198, 0.7);
+}
+.gate-sub {
+  margin: 4px 0 18px;
+  font-size: 13px;
+  color: #9fd8ef;
+}
+.gate-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.gate-tabs button {
+  flex: 1;
+  padding: 9px 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(120, 220, 255, 0.25);
+  background: rgba(10, 40, 60, 0.5);
+  color: #a9d6ea;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.gate-tabs button.on {
+  background: linear-gradient(180deg, rgba(46, 230, 198, 0.3), rgba(10, 60, 90, 0.5));
+  color: #fff;
+  border-color: rgba(46, 230, 198, 0.6);
+}
+.gate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gate-form input {
+  padding: 13px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(120, 220, 255, 0.3);
+  background: rgba(3, 14, 24, 0.8);
+  color: #dff3ff;
+  font-size: 15px;
+}
+.gate-form input:focus {
+  outline: none;
+  border-color: #2ee6c6;
+  box-shadow: 0 0 12px rgba(46, 230, 198, 0.4);
+}
+.gate-form input[hidden] {
+  display: none;
+}
+.gate-submit {
+  margin-top: 4px;
+  padding: 14px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(180deg, #2ee6c6, #0a9d84);
+  color: #042;
+  font-size: 16px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.gate-submit:disabled {
+  opacity: 0.6;
+}
+.gate-link {
+  background: none;
+  border: none;
+  color: #86b8cf;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px;
+}
+.gate-link[hidden] {
+  display: none;
+}
+.gate-msg {
+  min-height: 18px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.gate-msg.err {
+  color: #ff8a8a;
+}
+.gate-msg.ok {
+  color: #6cffb0;
+}
+.gate-msg.info {
+  color: #ffcf3a;
+}
+
+/* 관리자 진입 버튼 */
+.gate-adminbtn {
+  position: fixed;
+  z-index: 60;
+  right: 14px;
+  bottom: 14px;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 207, 58, 0.6);
+  background: rgba(10, 40, 60, 0.85);
+  color: #ffcf3a;
+  font-size: 22px;
+  cursor: pointer;
+  box-shadow: 0 0 18px rgba(255, 207, 58, 0.4);
+}
+
+/* 관리자 콘솔 */
+.gate-admin {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  background: rgba(3, 12, 20, 0.96);
+  color: #dff3ff;
+}
+.gate-admin[hidden] {
+  display: none;
+}
+.ga-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(120, 220, 255, 0.2);
+}
+.ga-head b {
+  font-size: 18px;
+  color: #ffcf3a;
+}
+.ga-actions {
+  display: flex;
+  gap: 8px;
+}
+.ga-actions button {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(120, 220, 255, 0.3);
+  background: rgba(10, 40, 60, 0.6);
+  color: #dff3ff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ga-body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 22px;
+}
+@media (min-width: 900px) {
+  .ga-body {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.ga-body h3 {
+  margin: 0 0 10px;
+  color: #2ee6c6;
+  font-size: 15px;
+}
+.ga-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.ga-table th,
+.ga-table td {
+  padding: 8px 8px;
+  text-align: left;
+  border-bottom: 1px solid rgba(120, 220, 255, 0.12);
+  white-space: nowrap;
+}
+.ga-table th {
+  color: #9fd8ef;
+  font-weight: 700;
+}
+.ga-act {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.ga-btn {
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(120, 220, 255, 0.3);
+  background: rgba(10, 40, 60, 0.6);
+  color: #dff3ff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ga-btn.ok {
+  border-color: #2ee6c6;
+  color: #6cffb0;
+}
+.ga-btn.no {
+  border-color: #ff8a8a;
+  color: #ff8a8a;
+}
+.ga-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.ga-chip.approved {
+  background: rgba(46, 230, 198, 0.2);
+  color: #6cffb0;
+}
+.ga-chip.pending {
+  background: rgba(255, 207, 58, 0.2);
+  color: #ffcf3a;
+}
+.ga-chip.rejected,
+.ga-chip.blocked {
+  background: rgba(255, 90, 90, 0.2);
+  color: #ff8a8a;
+}
+.ga-loading {
+  color: #86b8cf;
+  font-size: 13px;
+  padding: 8px;
+}
+.ga-loading.err {
+  color: #ff8a8a;
+}

@@ -1,5 +1,9 @@
 // 부트스트랩 — 캔버스/HUD 연결, 입력 바인딩, 메인 루프.
 import { Game, type HudData } from "./render/game.js";
+import "./auth/auth.css";
+import { initGate } from "./auth/overlay.js";
+
+let started = false; // 로그인 승인 후 게임 시작 여부
 
 const canvas = document.getElementById("screen") as HTMLCanvasElement;
 const game = new Game(canvas);
@@ -134,6 +138,7 @@ sStop.addEventListener("input", () => {
 });
 
 window.addEventListener("keydown", (e) => {
+  if (!started) return; // 로그인 전에는 게임 입력 무시
   if (e.code === "Space") {
     e.preventDefault();
     game.toggleAuto();
@@ -176,16 +181,24 @@ window.addEventListener("orientationchange", () => {
 });
 window.addEventListener("pageshow", applyScale);
 window.addEventListener("load", applyScale);
-applyScale();
-setTimeout(applyScale, 200);
 
-// ---- 메인 루프 ----
-let last = performance.now();
-function frame(now: number): void {
-  const dt = Math.min(0.05, (now - last) / 1000);
-  last = now;
-  game.update(dt);
-  game.draw();
+// ---- 로그인 승인 후 게임 시작 ----
+function startGame(): void {
+  if (started) return;
+  started = true;
+  document.body.classList.add("authed");
+  applyScale();
+  setTimeout(applyScale, 200);
+  let last = performance.now();
+  const frame = (now: number): void => {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    game.update(dt);
+    game.draw();
+    requestAnimationFrame(frame);
+  };
   requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
+
+// 스플래시/로그인 게이트 — 승인되면 게임 시작.
+initGate(() => startGame());
