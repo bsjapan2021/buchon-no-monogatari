@@ -73,7 +73,10 @@ export function initGate(onApproved: (p: Profile) => void): GateController {
   `;
   document.body.appendChild(root);
 
-  const $ = <T extends HTMLElement = HTMLElement>(id: string): T => root.querySelector(`#${id}`) as T;
+  // id는 전역이므로 document 기준으로 조회(패널을 #gate 밖으로 옮겨도 동작).
+  const $ = <T extends HTMLElement = HTMLElement>(id: string): T => document.getElementById(id) as T;
+  // 관리자 콘솔은 로그인 후 opacity:0 되는 #gate 밖(body)으로 이동 → 항상 보이게.
+  document.body.appendChild($("gate-admin"));
   const nameEl = $<HTMLInputElement>("f-name");
   const emailEl = $<HTMLInputElement>("f-email");
   const passEl = $<HTMLInputElement>("f-pass");
@@ -305,10 +308,10 @@ export function initGate(onApproved: (p: Profile) => void): GateController {
         alert(String((err as Error).message ?? err));
       }
     };
-    root.querySelectorAll<HTMLButtonElement>("[data-approve]").forEach((b) => (b.onclick = run(() => setStatus(b.dataset.approve!, "approved"))));
-    root.querySelectorAll<HTMLButtonElement>("[data-reject]").forEach((b) => (b.onclick = run(() => setStatus(b.dataset.reject!, "rejected"))));
-    root.querySelectorAll<HTMLButtonElement>("[data-block]").forEach((b) => (b.onclick = run(() => setBlocked(b.dataset.block!, true))));
-    root.querySelectorAll<HTMLButtonElement>("[data-unblock]").forEach((b) => (b.onclick = run(() => setBlocked(b.dataset.unblock!, false))));
+    document.querySelectorAll<HTMLButtonElement>("[data-approve]").forEach((b) => (b.onclick = run(() => setStatus(b.dataset.approve!, "approved"))));
+    document.querySelectorAll<HTMLButtonElement>("[data-reject]").forEach((b) => (b.onclick = run(() => setStatus(b.dataset.reject!, "rejected"))));
+    document.querySelectorAll<HTMLButtonElement>("[data-block]").forEach((b) => (b.onclick = run(() => setBlocked(b.dataset.block!, true))));
+    document.querySelectorAll<HTMLButtonElement>("[data-unblock]").forEach((b) => (b.onclick = run(() => setBlocked(b.dataset.unblock!, false))));
   }
 
   // ---- 비밀번호 재설정 리다이렉트 처리 ----
