@@ -50,6 +50,13 @@ export class Effects {
   private fwParticles: Particle[] = [];
   private fireworksT = 0;
   private fwTimer = 0;
+  private fwTint: string | null = null; // 불꽃 색조 바이어스(테마색)
+
+  /** 흥분 자동연출 색 바이어스(테마색) — 플래시/섬광을 테마색으로 통일. */
+  private hypeTint: string | null = null;
+
+  /** 충격파 링 — 당첨 순간 퍼지는 빛의 고리(프리미엄). */
+  private shockwaves: { x: number; y: number; r: number; maxR: number; life: number; maxLife: number; color: string }[] = [];
 
   cutin: { text: string; sub: string; color: string; a: number; t: number } | null = null;
 
@@ -110,13 +117,15 @@ export class Effects {
   // ---- 불꽃놀이 (연속 형형색색 폭죽) ----
   private static FW_COLORS = ["#ff5fa2", "#ffcf3a", "#2ee6c6", "#9b6cff", "#ff7b4d", "#6cff9b", "#4db8ff", "#ff4d4d", "#ffffff"];
 
-  /** duration초 동안 폭죽을 연속 발사한다. */
-  startFireworks(duration: number): void {
+  /** duration초 동안 폭죽을 연속 발사한다. tint 지정 시 그 색을 60% 섞는다(테마색). */
+  startFireworks(duration: number, tint: string | null = null): void {
     this.fireworksT = Math.max(this.fireworksT, duration);
+    this.fwTint = tint;
   }
 
   private launchShell(): void {
-    const color = Effects.FW_COLORS[(Math.random() * Effects.FW_COLORS.length) | 0]!;
+    const color =
+      this.fwTint && Math.random() < 0.6 ? this.fwTint : Effects.FW_COLORS[(Math.random() * Effects.FW_COLORS.length) | 0]!;
     this.shells.push({
       x: this.w * (0.12 + Math.random() * 0.76),
       y: this.h,
@@ -174,6 +183,16 @@ export class Effects {
     this.hype = Math.max(0, Math.min(1, v));
   }
 
+  /** 흥분 자동연출 색 바이어스(테마색). null이면 무지개. */
+  setHypeTint(c: string | null): void {
+    this.hypeTint = c;
+  }
+
+  /** 당첨 순간 퍼지는 빛의 고리. */
+  shockwave(x: number, y: number, color: string, maxR: number): void {
+    this.shockwaves.push({ x, y, r: maxR * 0.06, maxR, life: 0, maxLife: 0.75, color });
+  }
+
   /** 화면 분할 전환 시작 (리치→오아다리). */
   startSplit(color: string, dur = 0.9): void {
     this.splitActive = true;
@@ -202,12 +221,12 @@ export class Effects {
       this.flashTimer -= dt;
       this.beamTimer -= dt;
       if (this.flashTimer <= 0) {
-        this.flash(HYPE_COLORS[(Math.random() * HYPE_COLORS.length) | 0]!, 0.18 + this.hype * 0.28);
+        this.flash(this.hypeTint ?? HYPE_COLORS[(Math.random() * HYPE_COLORS.length) | 0]!, 0.18 + this.hype * 0.28);
         this.flashTimer = 0.32 - this.hype * 0.14; // 흥분↑ → 더 자주 번쩍
       }
       if (this.beamTimer <= 0) {
         const n = 1 + ((this.hype * 2) | 0);
-        for (let i = 0; i < n; i++) this.spawnBeam();
+        for (let i = 0; i < n; i++) this.spawnBeam(this.hypeTint ?? undefined);
         this.beamTimer = 0.22 - this.hype * 0.1;
       }
       this.shake(0.25 + this.hype * 0.75, 0.12);
@@ -247,6 +266,13 @@ export class Effects {
       p.vy += 160 * dt;
     }
     this.fwParticles = this.fwParticles.filter((p) => p.life < p.maxLife);
+
+    for (const s of this.shockwaves) {
+      s.life += dt;
+      const p = Math.min(1, s.life / s.maxLife);
+      s.r = s.maxR * (1 - (1 - p) ** 2); // easeOutQuad
+    }
+    this.shockwaves = this.shockwaves.filter((s) => s.life < s.maxLife);
 
     for (const b of this.beams) b.life += dt;
     this.beams = this.beams.filter((b) => b.life < b.maxLife);
@@ -290,9 +316,20 @@ export class Effects {
 
   /** 불꽃놀이 — 최상단(패널·영상 위)에 그린다. */
   drawFireworks(ctx: CanvasRenderingContext2D): void {
-    if (this.shells.length === 0 && this.fwParticles.length === 0) return;
+    if (this.shells.length === 0 && this.fwParticles.length === 0 && this.shockwaves.length === 0) return;
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
+    for (const s of this.shockwaves) {
+      const p = Math.min(1, s.life / s.maxLife);
+      ctx.globalAlpha = Math.max(0, 1 - p) * 0.8;
+      ctx.strokeStyle = s.color;
+      ctx.shadowColor = s.color;
+      ctx.shadowBlur = 18;
+      ctx.lineWidth = Math.max(2, s.maxR * 0.035 * (1 - p));
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     for (const p of this.fwParticles) {
       ctx.globalAlpha = Math.max(0, 1 - p.life / p.maxLife);
       ctx.fillStyle = p.color;

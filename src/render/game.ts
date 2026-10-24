@@ -27,6 +27,44 @@ type Phase = "idle" | "spinning" | "result" | "cooldown";
 const REACH_CUTINS = [1, 3, 7, 8, 9, 10, 11];
 const OMEN_CUTINS = [8, 9];
 
+// 리치/오아다리 프리미엄 테마 — 테마마다 색·캐릭터·불꽃·연출 강도가 다르다.
+interface WinTheme {
+  titleKo: string;
+  titleJa: string;
+  color: string; // 강조색(컷인/플래시/버스트)
+  beam: string; // 섬광·흥분 바이어스 색
+  fw: string | null; // 불꽃 색조(null=무지개)
+  chars: number[]; // 컷인 캐릭터 로테이션(다양하게)
+  omen: boolean; // 대형 피규어(8·9) 컷인 사용
+  shake: number; // 당첨 진동
+  fwDur: number; // 불꽃 지속(초)
+  split: boolean; // 화면 분할 전환
+  hype: number; // 서스펜스 최대 흥분도
+}
+
+// 리치(통상/짝수·파랑 계열) — 적당히 화려한 5종.
+const REACH_THEMES: WinTheme[] = [
+  { titleKo: "오로라 리치", titleJa: "オーロラリーチ", color: "#2ee6c6", beam: "#6cff9b", fw: "#2ee6c6", chars: [2, 4, 6, 5], omen: false, shake: 0.5, fwDur: 3.2, split: false, hype: 0.55 },
+  { titleKo: "스타더스트 리치", titleJa: "スターダストリーチ", color: "#ffcf3a", beam: "#fff4c2", fw: "#ffcf3a", chars: [7, 10, 11, 1], omen: false, shake: 0.5, fwDur: 3.5, split: false, hype: 0.6 },
+  { titleKo: "블로섬 리치", titleJa: "ブロッサムリーチ", color: "#ff7bd0", beam: "#ff7bd0", fw: "#ff7bd0", chars: [3, 8, 9, 6], omen: false, shake: 0.45, fwDur: 3.2, split: false, hype: 0.55 },
+  { titleKo: "오션 리치", titleJa: "オーシャンリーチ", color: "#4db8ff", beam: "#8fe9ff", fw: "#4db8ff", chars: [1, 5, 6, 2], omen: false, shake: 0.5, fwDur: 3.4, split: false, hype: 0.6 },
+  { titleKo: "레인보우 리치", titleJa: "レインボーリーチ", color: "#9b6cff", beam: "#9b6cff", fw: null, chars: [1, 2, 3, 4, 5, 6], omen: false, shake: 0.65, fwDur: 3.9, split: true, hype: 0.72 },
+];
+
+// 오아다리(확변/홀수·빨강 계열) — 프리미엄 그랜드 6종.
+const OOATARI_THEMES: WinTheme[] = [
+  { titleKo: "골든 러시", titleJa: "ゴールドラッシュ", color: "#ffcf3a", beam: "#fff4c2", fw: "#ffcf3a", chars: [7, 11, 10], omen: false, shake: 1.3, fwDur: 6, split: true, hype: 1 },
+  { titleKo: "크림슨 블래스트", titleJa: "クリムゾンブラスト", color: "#ff4d4d", beam: "#ff7b4d", fw: "#ff4d4d", chars: [9, 3, 1], omen: false, shake: 1.45, fwDur: 6, split: true, hype: 1 },
+  { titleKo: "레인보우 페스티벌", titleJa: "レインボーフェス", color: "#9b6cff", beam: "#9b6cff", fw: null, chars: [1, 3, 5, 7, 9, 11], omen: false, shake: 1.3, fwDur: 7, split: true, hype: 1 },
+  { titleKo: "로열 웨딩", titleJa: "ロイヤルウェディング", color: "#ffd6f0", beam: "#ff7bd0", fw: "#ff7bd0", chars: [8, 9], omen: true, shake: 1.2, fwDur: 6.5, split: true, hype: 1 },
+  { titleKo: "메가 쇼크", titleJa: "メガショック", color: "#ffffff", beam: "#8fe9ff", fw: null, chars: [1, 5, 7, 11, 3], omen: false, shake: 1.65, fwDur: 6.5, split: true, hype: 1 },
+  { titleKo: "에메랄드 드림", titleJa: "エメラルドドリーム", color: "#2ee6c6", beam: "#6cff9b", fw: "#2ee6c6", chars: [2, 6, 4, 10], omen: false, shake: 1.3, fwDur: 6, split: true, hype: 1 },
+];
+
+function pickTheme(arr: WinTheme[]): WinTheme {
+  return arr[(Math.random() * arr.length) | 0]!;
+}
+
 function rnd9(): number {
   return 1 + Math.floor(Math.random() * 9);
 }
@@ -83,6 +121,7 @@ export class Game {
   private cutinTimer = 0;
   private omenSwitched = false;
   private omenBig = false; // 오아다리 징조 — 8·9 큰 그림
+  private theme: WinTheme | null = null; // 이번 리치/오아다리 테마
 
   // 프리미엄 영상 (사용자 제공).
   private videos: Record<string, HTMLVideoElement> = {};
@@ -188,6 +227,9 @@ export class Game {
     this.cutinActive = false;
     this.omenSwitched = false;
     this.omenBig = false;
+    // 이번 스핀의 리치/오아다리 테마를 무작위 선택(매번 다른 연출).
+    this.theme = out.kind === "ooatari" ? pickTheme(OOATARI_THEMES) : out.kind === "reach" ? pickTheme(REACH_THEMES) : null;
+    this.fx.setHypeTint(this.theme?.beam ?? null);
 
     this.scheduleStops(out); // lastRow 먼저 결정
     this.buildDisplay(out);
@@ -374,25 +416,29 @@ export class Game {
   private updateSuspense(): void {
     const out = this.outcome;
     if (!out || out.kind === "none" || this.pt <= this.firstStopT) return;
+    const t = this.theme;
     const total = this.stopDelay[this.lastRow];
     const prog = Math.min(1, (this.pt - this.firstStopT) / Math.max(0.001, total - this.firstStopT));
-    const baseHype = out.kind === "ooatari" ? 1 : 0.5;
-    this.fx.setHype(baseHype * (0.5 + 0.5 * prog));
+    const peak = out.kind === "ooatari" ? (t?.hype ?? 1) : 0.5;
+    this.fx.setHype(peak * (0.5 + 0.5 * prog));
     if (!this.cutinActive) {
       this.cutinActive = true;
-      this.cutinSet = REACH_CUTINS;
+      this.cutinSet = t?.chars ?? REACH_CUTINS; // 테마별 캐릭터 로테이션
       this.cutinIdx = 0;
       this.cutinTimer = 0;
       this.omenSwitched = false;
-      this.fx.showCutin(out.kind === "ooatari" ? "チャンス! 찬스!" : "リーチ予感 / 리치 예감", "", "#9fe9ff");
+      const title = out.kind === "ooatari" ? (t ? `${t.titleJa} 予感!` : "チャンス! 찬스!") : "リーチ予感 / 리치 예감";
+      this.fx.showCutin(title, "", t?.beam ?? "#9fe9ff");
     }
-    if (out.kind === "ooatari" && prog > 0.28 && !this.omenSwitched) {
+    // 오아다리: 후반 돌입 — 대형 컷인 + 테마 타이틀 예고.
+    if (out.kind === "ooatari" && prog > 0.3 && !this.omenSwitched) {
       this.omenSwitched = true;
-      this.omenBig = true; // 8·9 큰 그림으로, 더 길게
-      this.cutinSet = OMEN_CUTINS;
+      this.omenBig = true; // 대형 컷인(테마가 omen이면 8·9 피규어)
+      if (t?.omen) this.cutinSet = OMEN_CUTINS;
       this.cutinIdx = 0;
       this.cutinTimer = 0;
-      this.fx.showCutin("大当たり予告 / 오아다리 징조!!", "8·9 출현 — 홀수 정렬!", "#ffcf3a");
+      this.fx.showCutin(`${t?.titleJa ?? "大当たり"} 予告!!`, `${t?.titleKo ?? "홀수 정렬"} 확정 임박!`, t?.color ?? "#ffcf3a");
+      this.fx.spawnTeaser(t?.color ?? "#ffcf3a", 26);
     }
   }
 
@@ -401,49 +447,57 @@ export class Game {
     this.hud.totalSpins++;
     const center = { x: this.reelLeft() + 1.5 * this.step(), y: this.rowYs()[1] };
     if (out.kind === "ooatari") {
-      const pal = paletteFor(out.number);
-      // 오아다리(확률↑ 슈퍼 맥락) → 11.mov 재생 + 팡파레/폭죽/환호/음성.
+      const t = this.theme ?? OOATARI_THEMES[0]!;
+      // 오아다리 → 11.mov + 테마별 프리미엄 연출(색·불꽃·분할·충격파·진동).
       this.reachStreak = 0;
       this.playVideo("11");
       this.audio.ooatari();
-      this.fx.startFireworks(5); // 형형색색 폭죽 연속
-      this.fx.startSplit("#ffcf3a", 0.8);
-      this.fx.flash(pal.glow, 0.5);
-      this.fx.shake(1.3, 0.9);
-      this.fx.burst(center.x, center.y, pal.glow, 170);
+      this.fx.setHypeTint(t.beam);
+      this.fx.startFireworks(t.fwDur, t.fw);
+      if (t.split) this.fx.startSplit(t.color, 0.8);
+      this.fx.flash(t.color, 0.5);
+      this.fx.shake(t.shake, 0.9);
+      this.fx.burst(center.x, center.y, t.color, 180);
+      this.fx.shockwave(center.x, center.y, t.color, this.w * 0.5);
+      this.fx.shockwave(center.x, center.y, t.beam, this.w * 0.72);
       this.winLine = out.line;
       this.winGlow = 1;
       this.winChar = out.number;
       const payout = out.payout;
       this.held += payout;
       this.hud.ooatari++;
-      this.fx.showCutin("大当たり / 오아다리!!", `${out.round}R 確変 +${payout}구슬`, pal.glow);
-      this.hud.message = `大当たり(오아다리)! ${out.round}R確変 (+${payout}) ${out.continued ? "[연장]" : ""}`;
+      this.fx.showCutin(`${t.titleJa} 大当たり!!`, `${t.titleKo} · ${out.round}R 確変 +${payout}`, t.color);
+      this.hud.message = `${t.titleKo} 大当たり! ${out.round}R確変 (+${payout}) ${out.continued ? "[연장]" : ""}`;
     } else if (out.kind === "reach") {
-      const pal = paletteFor(out.number);
+      const t = this.theme ?? REACH_THEMES[0]!;
       // 2회 이상 연속 리치 → 12.mov 재생.
       this.reachStreak++;
       if (this.reachStreak >= 2) this.playVideo("12");
       this.audio.reach();
-      this.fx.startFireworks(3.5); // 리치(大当り)도 폭죽
-      this.fx.flash(pal.glow, 0.6);
-      this.fx.shake(0.6, 0.4);
-      this.fx.burst(center.x, center.y, pal.glow, 60);
+      this.fx.setHypeTint(t.beam);
+      this.fx.startFireworks(t.fwDur, t.fw);
+      if (t.split) this.fx.startSplit(t.color, 0.7);
+      this.fx.flash(t.color, 0.55);
+      this.fx.shake(t.shake, 0.4);
+      this.fx.burst(center.x, center.y, t.color, 70);
+      this.fx.shockwave(center.x, center.y, t.color, this.w * 0.4);
       this.winLine = out.line;
       this.winGlow = 0.7;
       this.winChar = out.number;
       const payout = out.payout;
       this.held += payout;
       this.hud.reachCount++;
-      this.fx.showCutin("リーチ / 리치!", `${out.round}R 通常 +${payout}구슬`, pal.glow);
-      this.hud.message = `リーチ(리치)! ${out.round}R通常 (+${payout})`;
+      this.fx.showCutin(`${t.titleJa} リーチ!`, `${t.titleKo} · ${out.round}R 通常 +${payout}`, t.color);
+      this.hud.message = `${t.titleKo} 리치! ${out.round}R通常 (+${payout})`;
     } else if (out.kind === "reachlose") {
       // 리치 꽝(ハズレ) — 연출만, 당첨 없음.
+      this.fx.setHypeTint(null);
       this.winLine = null;
       this.winGlow = 0;
       this.fx.shake(0.4, 0.3);
       this.hud.message = "リーチ…ハズレ / 아깝다";
     } else {
+      this.fx.setHypeTint(null);
       this.winLine = null;
       this.winGlow = 0;
       this.reachStreak = 0;
