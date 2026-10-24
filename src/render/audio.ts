@@ -323,6 +323,68 @@ export class AudioManager {
     for (let i = 0; i < 6; i++) this.noiseBurst(0.1 + i * 0.17, 0.12, 0.3);
   }
 
+  /** 멧돼지 떼 질주 — 낮은 발굽 우르릉(갤럽 트레몰로) + 간헐 꿀꿀/괴성. */
+  stampede(dur = 3.0): void {
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer(dur + 0.3);
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 170;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.6, t + 0.25);
+    g.gain.setValueAtTime(0.6, t + dur - 0.6);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    // 갤럽 발굽 리듬(트레몰로).
+    const lfo = this.ctx.createOscillator();
+    lfo.type = "triangle";
+    lfo.frequency.value = 11;
+    const lfoG = this.ctx.createGain();
+    lfoG.gain.value = 0.38;
+    lfo.connect(lfoG);
+    lfoG.connect(g.gain);
+    src.connect(lp);
+    lp.connect(g);
+    g.connect(this.master);
+    src.start(t);
+    src.stop(t + dur + 0.3);
+    lfo.start(t);
+    lfo.stop(t + dur + 0.3);
+    this.scheduleGrunts(dur);
+  }
+
+  private scheduleGrunts(remain: number): void {
+    if (remain <= 0 || !this.ctx || !this.master) return;
+    this.grunt();
+    const gap = 0.16 + Math.random() * 0.22;
+    window.setTimeout(() => this.scheduleGrunts(remain - gap), gap * 1000);
+  }
+
+  private grunt(): void {
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator();
+    o.type = "sawtooth";
+    const f0 = 90 + Math.random() * 170;
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(f0 * 0.6, t + 0.12);
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 500 + Math.random() * 700;
+    bp.Q.value = 2;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.3, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    o.connect(bp);
+    bp.connect(g);
+    g.connect(this.master);
+    o.start(t);
+    o.stop(t + 0.17);
+  }
+
   cheer(): void {
     if (!this.ctx || !this.master) return;
     const t = this.ctx.currentTime;

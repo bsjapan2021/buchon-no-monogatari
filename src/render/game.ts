@@ -1,6 +1,7 @@
 // 게임 오케스트레이터 — 파친코 물리(구슬) + 결과 컨트롤러(ST식 모드) + 릴 연출.
 import { Reel } from "./reel.js";
 import { Effects } from "./effects.js";
+import { Stampede } from "./boars.js";
 import { drawBackground } from "./background.js";
 import { paletteFor, getCharImage, getOmenImage, getPremiumImage, drawSymbol } from "./symbols.js";
 import { Playfield, type PanelRect } from "./playfield.js";
@@ -112,6 +113,7 @@ export class Game {
   private controller = new OutcomeController();
   private reels: [Reel, Reel, Reel];
   private fx: Effects;
+  private stampede = new Stampede(); // 오아다리 — 멧돼지 떼 질주
   private audio = new AudioManager();
 
   private w = 0;
@@ -322,6 +324,7 @@ export class Game {
     this.canvas.height = Math.floor(this.h * this.dpr);
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.fx.resize(this.w, this.h);
+    this.stampede.resize(this.w, this.h);
     this.playfield.layout(this.w, this.h, this.panelRect(), this.holeMouthY());
   }
 
@@ -414,6 +417,7 @@ export class Game {
   update(dt: number): void {
     this.time += dt;
     this.fx.update(dt);
+    this.stampede.update(dt);
     for (const r of this.reels) r.update(dt);
     if (this.winGlow > 0) this.winGlow = Math.max(0, this.winGlow - dt * 0.4);
 
@@ -585,6 +589,8 @@ export class Game {
       this.reachStreak = 0;
       this.playVideo("11");
       this.audio.ooatari();
+      this.stampede.start(this.w, this.h); // 멧돼지 떼 질주
+      this.audio.stampede(3.0); // 떼 질주 사운드
       this.fx.setHypeTint(t.beam);
       this.fx.startFireworks(t.fwDur, t.fw);
       if (t.split) this.fx.startSplit(t.color, 0.8);
@@ -757,6 +763,7 @@ export class Game {
 
     this.drawVideo(ctx);
     this.fx.drawBeams(ctx);
+    this.stampede.draw(ctx); // 오아다리 멧돼지 떼(영상 위로 질주)
     if (!this.activeVideo) {
       if (this.cutinActive && this.theme?.oinori) this.drawMoon(ctx); // 달님 기도 연출
       this.drawCutinChar(ctx);
