@@ -70,7 +70,8 @@ export class Playfield {
 
   private insidePanel(x: number, y: number): boolean {
     const p = this.panel;
-    const m = this.ballR + this.pinR;
+    // 패널 벽에 너무 가까운 못은 제거 — 벽-못 틈에 구슬(지름 2R)이 끼지 않도록 충분히 비운다.
+    const m = this.ballR * 2.8;
     return x > p.x - m && x < p.x + p.w + m && y > p.y - m && y < p.y + p.h + m;
   }
 
@@ -100,9 +101,10 @@ export class Playfield {
     const cx = this.hole.x; // 중앙
     // 상단 밴드 (패널 위) — 중앙 스플리터 영역은 비워둔다.
     this.fill(margin, this.h * 0.1, this.w - margin, p.y - sp * 0.6, sp);
-    // 좌/우 채널.
-    this.fill(margin, p.y, p.x - sp * 0.4, this.hole.y - sp * 0.4, sp);
-    this.fill(p.x + p.w + sp * 0.4, p.y, this.w - margin, this.hole.y - sp * 0.4, sp);
+    // 좌/우 채널 — 패널 벽에서 구슬 지름 이상 떨어뜨려 시작(끼임 방지).
+    const sideGap = this.ballR * 3;
+    this.fill(margin, p.y, p.x - sideGap, this.hole.y - sp * 0.4, sp);
+    this.fill(p.x + p.w + sideGap, p.y, this.w - margin, this.hole.y - sp * 0.4, sp);
     // 하단 밴드 (패널 아래).
     this.fill(margin, panelBottom + sp * 0.5, this.w - margin, this.hole.y - sp * 0.4, sp);
 
