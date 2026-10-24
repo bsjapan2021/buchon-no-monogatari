@@ -2,7 +2,7 @@
 import { Reel } from "./reel.js";
 import { Effects } from "./effects.js";
 import { drawBackground } from "./background.js";
-import { paletteFor, getCharImage, getOmenImage } from "./symbols.js";
+import { paletteFor, getCharImage, getOmenImage, drawSymbol } from "./symbols.js";
 import { Playfield, type PanelRect } from "./playfield.js";
 import { OutcomeController, lineCells, type Outcome, type LineSpec } from "./outcome.js";
 import { AudioManager } from "./audio.js";
@@ -84,6 +84,7 @@ export class Game {
   private lastRow = 2;
   private winLine: LineSpec | null = null;
   private winGlow = 0;
+  private winChar = 0; // 당첨 캐릭터 — 좌·우에 다음 당첨까지 표시
 
   // 컷인.
   private cutinActive = false;
@@ -424,6 +425,7 @@ export class Game {
       this.fx.burst(center.x, center.y, pal.glow, 170);
       this.winLine = out.line;
       this.winGlow = 1;
+      this.winChar = out.number;
       const payout = out.payout;
       this.held += payout;
       this.hud.ooatari++;
@@ -441,6 +443,7 @@ export class Game {
       this.fx.burst(center.x, center.y, pal.glow, 60);
       this.winLine = out.line;
       this.winGlow = 0.7;
+      this.winChar = out.number;
       const payout = out.payout;
       this.held += payout;
       this.hud.reachCount++;
@@ -517,6 +520,16 @@ export class Game {
     ctx.translate(off.x, off.y);
 
     this.playfield.draw(ctx);
+
+    // 당첨 캐릭터 3개를 좌·우에 표시 (다음 리치/오아다리까지 유지).
+    if (this.winChar > 0) {
+      const sz = this.h * 0.18;
+      for (let i = 0; i < 3; i++) {
+        const cy = this.h * (0.27 + i * 0.23);
+        drawSymbol(ctx, this.winChar, this.w * 0.06, cy, sz, this.time, 0.35);
+        drawSymbol(ctx, this.winChar, this.w * 0.94, cy, sz, this.time, 0.35);
+      }
+    }
 
     const step = this.step();
     const stepX = this.stepX();
