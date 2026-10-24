@@ -305,6 +305,7 @@ export class Game {
       this.pendingSpins--;
       this.hud.pending = this.pendingSpins;
       this.startSpin();
+      this.emit(); // 릴이 돌기 시작하면 전광판 보류 숫자가 즉시 1 빠진다
     }
 
     switch (this.phase) {

@@ -16,7 +16,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     ooatari: "大当たり·오아다리", reach: "리치(짝수)", spins: "총 회전수",
     speed: "회전 속도", stop: "멈춤 시간",
     fire: "구슬 발사 / 정지 (Space)", skip: "스킵 (S)", lang: "日本語",
-    sb_spins: "회전", sb_held: "구슬", sb_reach: "금일 리치", sb_super: "금일 大当たり",
+    sb_spins: "회전", sb_held: "구슬", sb_pending: "보류", sb_reach: "금일 리치", sb_super: "금일 大当たり",
     hint: "왼쪽 아래에서 구슬 발사 → 못에 튕겨 입상 → 숫자 회전",
     mode_normal: "통상", mode_kakuhen: "確変", mode_jitan: "時短", mode_rush: "RUSH", mode_suffix: " 모드",
     mute_on: "🔊 소리 켜짐 (M)", mute_off: "🔇 소리 꺼짐 (M)",
@@ -26,7 +26,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     ooatari: "大当たり", reach: "リーチ(偶数)", spins: "総回転数",
     speed: "回転速度", stop: "停止時間",
     fire: "玉発射 / 停止 (Space)", skip: "スキップ (S)", lang: "한국어",
-    sb_spins: "回転", sb_held: "持ち玉", sb_reach: "本日リーチ", sb_super: "本日大当たり",
+    sb_spins: "回転", sb_held: "持ち玉", sb_pending: "保留", sb_reach: "本日リーチ", sb_super: "本日大当たり",
     hint: "左下から玉発射 → 釘に弾かれ入賞 → 数字回転",
     mode_normal: "通常", mode_kakuhen: "確変", mode_jitan: "時短", mode_rush: "RUSH", mode_suffix: "モード",
     mute_on: "🔊 サウンドON (M)", mute_off: "🔇 サウンドOFF (M)",
@@ -74,6 +74,7 @@ game.onHud = (h: HudData) => {
   // 상단 전광판 실시간.
   el("sb-spins").textContent = fmt(h.totalSpins);
   el("sb-held").textContent = fmt(h.held);
+  el("sb-pending").textContent = String(h.pending);
   el("sb-reach").textContent = fmt(h.reachCount);
   el("sb-super").textContent = fmt(h.ooatari);
   // 구슬 박스 (1박스=1000개) — 보유량만큼 양 사이드에 쌓임.
