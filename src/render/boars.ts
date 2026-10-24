@@ -60,7 +60,7 @@ export class Stampede {
     if (this.t > 0) return;
     this.t = this.dur;
     this.spawnT = 0;
-    for (let i = 0; i < 4; i++) this.spawnBoar(Math.random() * this.w * 0.5);
+    for (let i = 0; i < 8; i++) this.spawnBoar(Math.random() * this.w * 0.5);
   }
 
   private spawnBoar(extra = 0): void {
@@ -70,7 +70,7 @@ export class Stampede {
     const baby = kind === 2;
     const depth = Math.random(); // 0=먼(작고 위), 1=가까운(크고 아래)
     const hh = baby ? this.h * (0.05 + depth * 0.025) : this.h * (0.075 + depth * 0.035);
-    const ground = this.h * (0.66 + depth * 0.2);
+    const ground = this.h * (0.82 + depth * 0.14); // 바닥 쪽에서 질주
     const cross = 1.5 + Math.random() * 0.8; // 화면 통과 시간(초)
     const w = hh * ar;
     this.boars.push({
@@ -91,9 +91,10 @@ export class Stampede {
       this.t -= dt;
       this.spawnT -= dt;
       if (this.spawnT <= 0 && this.t > 0.5) {
-        this.spawnT = 0.1 + Math.random() * 0.14;
+        this.spawnT = 0.07 + Math.random() * 0.1;
         this.spawnBoar();
-        if (Math.random() < 0.4) this.spawnBoar();
+        this.spawnBoar();
+        if (Math.random() < 0.5) this.spawnBoar();
       }
     }
     for (const b of this.boars) {
