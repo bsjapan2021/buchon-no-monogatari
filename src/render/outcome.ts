@@ -28,9 +28,9 @@ export interface Outcome {
 }
 
 const DENOM = 65536;
-// 통상/시단 대당첨 확률 — 데모 플레이성을 위해 상향(실기 스펙 1/319.6). 확변은 실기 근사.
-const P_NORMAL = Math.round(DENOM / 90);
-const P_KAKUHEN = Math.round(DENOM / 31.9);
+// 통상/시단 대당첨(리치·오아다리) 확률 = 30% (사용자 요청). 確變(RUSH)은 그보다 높게 유지.
+const P_NORMAL = Math.round(DENOM * 0.3);
+const P_KAKUHEN = Math.round(DENOM * 0.5);
 
 interface RoundDef {
   round: number;
