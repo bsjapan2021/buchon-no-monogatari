@@ -229,6 +229,81 @@ export class AudioManager {
     this.speak("おおあたり！！", "ja-JP"); // 오아다리 → 일본어 음성
   }
 
+  /** 리치 예감 — 번개(천둥) + 전기 감전음 + 순간 볼륨 부스트(깜짝!). */
+  reachZap(): void {
+    if (!this.ctx || !this.master) return;
+    this.suddenLoud(1.0); // 순간적으로 볼륨을 키워 놀라게
+    this.thunder();
+    this.zap();
+  }
+
+  /** 마스터 볼륨을 순간 급상승 → 서서히 원복(깜짝 효과). */
+  private suddenLoud(dur: number): void {
+    if (!this.ctx || !this.master || this.muted) return;
+    const g = this.master.gain;
+    const t = this.ctx.currentTime;
+    const base = 0.5;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(base, t);
+    g.linearRampToValueAtTime(1.0, t + 0.015); // 2배로 급상승
+    g.linearRampToValueAtTime(base, t + dur); // 서서히 원복
+  }
+
+  /** 천둥/번개 — 날카로운 크랙 + 저역 우르릉. */
+  private thunder(): void {
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer(1.6);
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(500, t);
+    lp.frequency.exponentialRampToValueAtTime(70, t + 1.4);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.95, t + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+    src.connect(lp);
+    lp.connect(g);
+    g.connect(this.master);
+    src.start(t);
+    src.stop(t + 1.6);
+    this.noiseBurst(0, 0.12, 0.9); // 초기 번개 크랙
+  }
+
+  /** 전기 감전음 — 톱니 하강 + 고속 트레몰로(지글지글) + 지지직 크래클. */
+  private zap(): void {
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(1400, t);
+    osc.frequency.exponentialRampToValueAtTime(180, t + 0.5);
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 2200;
+    bp.Q.value = 7;
+    const lfo = this.ctx.createOscillator(); // 지글거림(트레몰로)
+    lfo.type = "square";
+    lfo.frequency.value = 58;
+    const lfoGain = this.ctx.createGain();
+    lfoGain.gain.value = 0.5;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.6, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+    lfo.connect(lfoGain);
+    lfoGain.connect(g.gain);
+    osc.connect(bp);
+    bp.connect(g);
+    g.connect(this.master);
+    osc.start(t);
+    osc.stop(t + 0.55);
+    lfo.start(t);
+    lfo.stop(t + 0.55);
+    for (let i = 0; i < 5; i++) this.noiseBurst(0.03 + i * 0.07, 0.04, 0.42); // 지지직
+  }
+
   fireworks(): void {
     for (let i = 0; i < 6; i++) this.noiseBurst(0.1 + i * 0.17, 0.12, 0.3);
   }

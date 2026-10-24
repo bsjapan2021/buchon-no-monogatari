@@ -459,6 +459,7 @@ export class Game {
     this.fx.setHype(peak * (0.5 + 0.5 * prog));
     if (!this.cutinActive) {
       this.cutinActive = true;
+      this.audio.reachZap(); // 리치예감 순간 — 번개+전기 감전음 + 순간 볼륨 부스트(깜짝!)
       this.cutinSet = t?.chars ?? REACH_CUTINS; // 테마별 캐릭터 로테이션
       this.cutinIdx = 0;
       this.cutinTimer = 0;
