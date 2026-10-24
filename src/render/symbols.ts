@@ -45,6 +45,24 @@ export function getOmenImage(id: number): HTMLImageElement | null {
   return OMEN_IMAGES[id] ?? null;
 }
 
+// 프리미엄 예감 전용 캐릭터 — public/premium/omen1.png, omen2.png (사용자 제공 소녀 캐릭터).
+// 런타임 로드(빌드 의존 없음). 파일이 없으면 null → 호출측이 기존 피규어로 폴백.
+const PREMIUM_SRCS = ["/premium/omen1.png", "/premium/omen2.png"];
+const PREMIUM_IMAGES: HTMLImageElement[] = PREMIUM_SRCS.map((src) => {
+  const im = new Image();
+  im.src = src;
+  return im;
+});
+
+export function getPremiumImage(idx: number): HTMLImageElement | null {
+  const im = PREMIUM_IMAGES[((idx % PREMIUM_IMAGES.length) + PREMIUM_IMAGES.length) % PREMIUM_IMAGES.length];
+  return im && im.complete && im.naturalWidth > 0 ? im : null;
+}
+
+export function premiumImagesReady(): boolean {
+  return PREMIUM_IMAGES.some((im) => im.complete && im.naturalWidth > 0);
+}
+
 export interface SymbolPalette {
   core: string;
   edge: string;

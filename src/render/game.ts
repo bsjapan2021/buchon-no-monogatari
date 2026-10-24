@@ -2,7 +2,7 @@
 import { Reel } from "./reel.js";
 import { Effects } from "./effects.js";
 import { drawBackground } from "./background.js";
-import { paletteFor, getCharImage, getOmenImage, drawSymbol } from "./symbols.js";
+import { paletteFor, getCharImage, getOmenImage, getPremiumImage, drawSymbol } from "./symbols.js";
 import { Playfield, type PanelRect } from "./playfield.js";
 import { OutcomeController, lineCells, type Outcome, type LineSpec } from "./outcome.js";
 import { AudioManager } from "./audio.js";
@@ -40,7 +40,26 @@ interface WinTheme {
   fwDur: number; // 불꽃 지속(초)
   split: boolean; // 화면 분할 전환
   hype: number; // 서스펜스 최대 흥분도
+  premium?: boolean; // 프리미엄 예감(소녀 캐릭터 컷인 — 오아다리 기대도 MAX)
+  oinori?: boolean; // お祈り/お願い 모드 — 캐릭터 5·6이 달님에게 기도(달 연출)
 }
+
+// 프리미엄 예감 — 이 연출이 뜨면 오아다리로 갈 확률이 매우 높다(기대도 MAX).
+// 소녀 캐릭터(public/premium/omen1·2.png) 컷인. 오아다리에 자주, 리치에 드물게 등장.
+const PREMIUM_OMEN: WinTheme = {
+  titleKo: "프리미엄 예감",
+  titleJa: "プレミアム予感",
+  color: "#ffcf3a",
+  beam: "#ff7bd0",
+  fw: null,
+  chars: [8, 9], // 프리미엄 이미지 미로드 시 폴백(피규어 8·9)
+  omen: true,
+  shake: 1.6,
+  fwDur: 7.5,
+  split: true,
+  hype: 1,
+  premium: true,
+};
 
 // 리치(통상/짝수·파랑 계열) — 적당히 화려한 5종.
 const REACH_THEMES: WinTheme[] = [
@@ -49,6 +68,8 @@ const REACH_THEMES: WinTheme[] = [
   { titleKo: "블로섬 리치", titleJa: "ブロッサムリーチ", color: "#ff7bd0", beam: "#ff7bd0", fw: "#ff7bd0", chars: [3, 8, 9, 6], omen: false, shake: 0.45, fwDur: 3.2, split: false, hype: 0.55 },
   { titleKo: "오션 리치", titleJa: "オーシャンリーチ", color: "#4db8ff", beam: "#8fe9ff", fw: "#4db8ff", chars: [1, 5, 6, 2], omen: false, shake: 0.5, fwDur: 3.4, split: false, hype: 0.6 },
   { titleKo: "레인보우 리치", titleJa: "レインボーリーチ", color: "#9b6cff", beam: "#9b6cff", fw: null, chars: [1, 2, 3, 4, 5, 6], omen: false, shake: 0.65, fwDur: 3.9, split: true, hype: 0.72 },
+  // お祈り/お願い — 달님께 기도(소녀 캐릭터가 달을 향해). 리치판.
+  { titleKo: "달님 기도 (오이노리)", titleJa: "お祈りモード", color: "#9fd4ff", beam: "#dff0ff", fw: "#9fd4ff", chars: [5, 6], omen: false, shake: 0.5, fwDur: 3.6, split: false, hype: 0.62, oinori: true },
 ];
 
 // 오아다리(확변/홀수·빨강 계열) — 프리미엄 그랜드 6종.
@@ -59,6 +80,8 @@ const OOATARI_THEMES: WinTheme[] = [
   { titleKo: "로열 웨딩", titleJa: "ロイヤルウェディング", color: "#ffd6f0", beam: "#ff7bd0", fw: "#ff7bd0", chars: [8, 9], omen: true, shake: 1.2, fwDur: 6.5, split: true, hype: 1 },
   { titleKo: "메가 쇼크", titleJa: "メガショック", color: "#ffffff", beam: "#8fe9ff", fw: null, chars: [1, 5, 7, 11, 3], omen: false, shake: 1.65, fwDur: 6.5, split: true, hype: 1 },
   { titleKo: "에메랄드 드림", titleJa: "エメラルドドリーム", color: "#2ee6c6", beam: "#6cff9b", fw: "#2ee6c6", chars: [2, 6, 4, 10], omen: false, shake: 1.3, fwDur: 6, split: true, hype: 1 },
+  // お願い成就 — 달님께 기도가 이루어진 오아다리판.
+  { titleKo: "달님 기도 성취 (오네가이)", titleJa: "お願い成就", color: "#ffd36a", beam: "#fff4c2", fw: "#ffcf3a", chars: [5, 6], omen: false, shake: 1.35, fwDur: 6.5, split: true, hype: 1, oinori: true },
 ];
 
 function pickTheme(arr: WinTheme[]): WinTheme {
@@ -234,7 +257,14 @@ export class Game {
     this.omenSwitched = false;
     this.omenBig = false;
     // 이번 스핀의 리치/오아다리 테마를 무작위 선택(매번 다른 연출).
-    this.theme = out.kind === "ooatari" ? pickTheme(OOATARI_THEMES) : out.kind === "reach" ? pickTheme(REACH_THEMES) : null;
+    // 프리미엄 예감은 오아다리에 자주(45%)·리치에 드물게(8%) → 뜨면 오아다리 기대도 MAX.
+    if (out.kind === "ooatari") {
+      this.theme = Math.random() < 0.45 ? PREMIUM_OMEN : pickTheme(OOATARI_THEMES);
+    } else if (out.kind === "reach") {
+      this.theme = Math.random() < 0.08 ? PREMIUM_OMEN : pickTheme(REACH_THEMES);
+    } else {
+      this.theme = null;
+    }
     this.fx.setHypeTint(this.theme?.beam ?? null);
 
     this.scheduleStops(out); // lastRow 먼저 결정
@@ -433,18 +463,34 @@ export class Game {
       this.cutinIdx = 0;
       this.cutinTimer = 0;
       this.omenSwitched = false;
-      const title = out.kind === "ooatari" ? (t ? `${t.titleJa} 予感!` : "チャンス! 찬스!") : "リーチ予感 / 리치 예감";
-      this.fx.showCutin(title, "", t?.beam ?? "#9fe9ff");
+      let title: string;
+      let sub = "";
+      let col = t?.beam ?? "#9fe9ff";
+      if (t?.premium) {
+        title = "✦ プレミアム予感 ✦";
+        sub = "大当たり 기대도 MAX!!";
+        col = "#ffcf3a";
+      } else if (t?.oinori) {
+        title = `${t.titleJa} 🌙`;
+        sub = "달님께 기도… 제발!";
+        col = t.beam;
+      } else {
+        title = out.kind === "ooatari" ? (t ? `${t.titleJa} 予感!` : "チャンス! 찬스!") : "リーチ予感 / 리치 예감";
+      }
+      this.fx.showCutin(title, sub, col);
     }
-    // 오아다리: 후반 돌입 — 대형 컷인 + 테마 타이틀 예고.
-    if (out.kind === "ooatari" && prog > 0.3 && !this.omenSwitched) {
+    // 후반 돌입 — 대형 컷인 + 테마 타이틀 예고. (프리미엄은 더 일찍·더 강하게)
+    const bigAt = t?.premium ? 0.18 : 0.3;
+    if ((out.kind === "ooatari" || t?.premium) && prog > bigAt && !this.omenSwitched) {
       this.omenSwitched = true;
-      this.omenBig = true; // 대형 컷인(테마가 omen이면 8·9 피규어)
-      if (t?.omen) this.cutinSet = OMEN_CUTINS;
+      this.omenBig = true; // 대형 컷인(테마가 omen이면 8·9 피규어, 프리미엄은 소녀 카드)
+      if (t?.omen && !t.premium) this.cutinSet = OMEN_CUTINS;
       this.cutinIdx = 0;
       this.cutinTimer = 0;
-      this.fx.showCutin(`${t?.titleJa ?? "大当たり"} 予告!!`, `${t?.titleKo ?? "홀수 정렬"} 확정 임박!`, t?.color ?? "#ffcf3a");
-      this.fx.spawnTeaser(t?.color ?? "#ffcf3a", 26);
+      const title = t?.premium ? "大当たり 確定級!!" : `${t?.titleJa ?? "大当たり"} 予告!!`;
+      const sub = t?.premium ? "프리미엄 — 오아다리 임박!!" : `${t?.titleKo ?? "홀수 정렬"} 확정 임박!`;
+      this.fx.showCutin(title, sub, t?.color ?? "#ffcf3a");
+      this.fx.spawnTeaser(t?.color ?? "#ffcf3a", 30);
     }
   }
 
@@ -630,7 +676,10 @@ export class Game {
 
     this.drawVideo(ctx);
     this.fx.drawBeams(ctx);
-    if (!this.activeVideo) this.drawCutinChar(ctx);
+    if (!this.activeVideo) {
+      if (this.cutinActive && this.theme?.oinori) this.drawMoon(ctx); // 달님 기도 연출
+      this.drawCutinChar(ctx);
+    }
     this.fx.drawOverlay(ctx);
     this.fx.drawFireworks(ctx); // 폭죽은 영상·패널 위 최상단
   }
@@ -662,17 +711,21 @@ export class Game {
 
   private drawCutinChar(ctx: CanvasRenderingContext2D): void {
     if (!this.cutinActive || this.cutinSet.length === 0) return;
+    const t = this.theme;
+    // 프리미엄 예감·오이노리는 소녀 캐릭터(public/premium) 카드 사용. 미로드 시 기존 폴백.
+    const premImg = t?.premium || t?.oinori ? getPremiumImage(this.cutinIdx) : null;
     const id = this.cutinSet[this.cutinIdx % this.cutinSet.length]!;
-    // 오아다리 징조에는 폴더 8.png/9.png(피규어) 사용.
-    const img = (this.omenBig ? getOmenImage(id) : null) ?? getCharImage(id);
+    const img = premImg ?? (this.omenBig ? getOmenImage(id) : null) ?? getCharImage(id);
     if (!img || !img.complete || img.naturalWidth === 0) return;
-    const big = this.omenBig;
+    const usePremium = premImg !== null;
+    const oinori = !!t?.oinori;
+    const big = this.omenBig || usePremium;
     const slide = Math.min(1, this.cutinTimer / 0.18);
     const e = 1 - (1 - slide) ** 3;
-    // contain: 세로형(신부)·가로형(커플) 모두 비율 유지하며 큰 박스에 맞춤.
     const ar = img.naturalWidth / img.naturalHeight;
-    const maxH = this.h * (big ? 0.9 : 0.78);
-    const maxW = this.w * (big ? 0.56 : 0.5);
+    // 오이노리는 달 아래 중앙에 작게, 프리미엄은 크게, 그 외 기존.
+    const maxH = this.h * (oinori ? 0.5 : big ? 0.86 : 0.78);
+    const maxW = this.w * (oinori ? 0.3 : big ? 0.5 : 0.5);
     let hgt = maxH;
     let wid = hgt * ar;
     if (wid > maxW) {
@@ -680,17 +733,82 @@ export class Game {
       hgt = wid / ar;
     }
     const fromRight = this.cutinIdx % 2 === 0;
-    const targetX = big ? (this.w - wid) / 2 : fromRight ? this.w * 0.52 : this.w * 0.48 - wid;
+    const centered = oinori || big;
+    const targetX = centered ? (this.w - wid) / 2 : fromRight ? this.w * 0.52 : this.w * 0.48 - wid;
     const startX = fromRight ? this.w + 20 : -wid - 20;
-    const x = startX + (targetX - startX) * e;
+    const x = oinori ? targetX : startX + (targetX - startX) * e;
     const bob = Math.sin(this.time * 12) * this.h * 0.012;
     const y = this.h - hgt - this.h * 0.02 + bob;
-    const pal = paletteFor(id);
+    const accent = t?.color ?? (big ? "#ffcf3a" : paletteFor(id).glow);
     ctx.save();
-    ctx.globalAlpha = (big ? 0.72 : 0.45) + (big ? 0.28 : 0.55) * e;
-    ctx.shadowColor = big ? "#ffcf3a" : pal.glow;
-    ctx.shadowBlur = big ? 60 : 44;
-    ctx.drawImage(img, x, y, wid, hgt);
+    ctx.globalAlpha = (big ? 0.85 : 0.45) + (big ? 0.15 : 0.55) * e;
+    if (usePremium) {
+      // 스튜디오(회색 배경) 이미지 → 둥근 프리미엄 카드(발광 테두리)로 감싸 자연스럽게.
+      const pad = Math.min(wid, hgt) * 0.035;
+      roundRect(ctx, x - pad, y - pad, wid + pad * 2, hgt + pad * 2, 22);
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 55;
+      ctx.fillStyle = "rgba(8,16,28,0.55)";
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.save();
+      roundRect(ctx, x, y, wid, hgt, 18);
+      ctx.clip();
+      ctx.drawImage(img, x, y, wid, hgt);
+      ctx.restore();
+      ctx.lineWidth = Math.max(3, wid * 0.014);
+      ctx.strokeStyle = accent;
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 28;
+      roundRect(ctx, x, y, wid, hgt, 18);
+      ctx.stroke();
+    } else {
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = big ? 60 : 44;
+      ctx.drawImage(img, x, y, wid, hgt);
+    }
+    ctx.restore();
+  }
+
+  /** 달님 기도(오이노리) — 상단 중앙에 빛나는 달. */
+  private drawMoon(ctx: CanvasRenderingContext2D): void {
+    const mx = this.w / 2;
+    const my = this.h * 0.24;
+    const r = this.h * 0.11;
+    ctx.save();
+    // 달무리(후광).
+    const halo = ctx.createRadialGradient(mx, my, r * 0.4, mx, my, r * 2.6);
+    halo.addColorStop(0, "rgba(255,247,214,0.5)");
+    halo.addColorStop(0.4, "rgba(200,225,255,0.22)");
+    halo.addColorStop(1, "rgba(200,225,255,0)");
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(mx, my, r * 2.6, 0, Math.PI * 2);
+    ctx.fill();
+    // 달 본체.
+    const body = ctx.createRadialGradient(mx - r * 0.3, my - r * 0.3, r * 0.2, mx, my, r);
+    body.addColorStop(0, "#fff8e0");
+    body.addColorStop(1, "#e7d9a8");
+    ctx.fillStyle = body;
+    ctx.shadowColor = "rgba(255,240,200,0.9)";
+    ctx.shadowBlur = 40;
+    ctx.beginPath();
+    ctx.arc(mx, my, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // 크레이터.
+    ctx.fillStyle = "rgba(200,185,140,0.5)";
+    const craters: [number, number, number][] = [
+      [-0.3, -0.2, 0.18],
+      [0.25, 0.1, 0.13],
+      [-0.1, 0.35, 0.1],
+      [0.35, -0.3, 0.09],
+    ];
+    for (const [dx, dy, cr] of craters) {
+      ctx.beginPath();
+      ctx.arc(mx + dx * r, my + dy * r, cr * r, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 }

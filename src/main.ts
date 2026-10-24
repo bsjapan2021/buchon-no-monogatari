@@ -153,7 +153,8 @@ const appEl = el("app");
 function applyScale(): void {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const scaleMode = vw > vh && vh < 600; // 가로 + 낮은 높이(모바일 가로 등)
+  // 짧은 변 < 640 = 폰(가로/세로 무관) → 데스크탑 레이아웃을 통째로 축소.
+  const scaleMode = Math.min(vw, vh) < 640;
   if (scaleMode) {
     document.body.classList.add("scaled");
     const s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
@@ -169,8 +170,14 @@ function applyScale(): void {
   game.relayout();
 }
 window.addEventListener("resize", applyScale);
-window.addEventListener("orientationchange", applyScale);
+window.addEventListener("orientationchange", () => {
+  applyScale();
+  setTimeout(applyScale, 300); // iOS: 회전 직후 innerHeight 반영 지연 대비
+});
+window.addEventListener("pageshow", applyScale);
+window.addEventListener("load", applyScale);
 applyScale();
+setTimeout(applyScale, 200);
 
 // ---- 메인 루프 ----
 let last = performance.now();
