@@ -89,7 +89,7 @@ export class OutcomeController {
       // 리치 꽝(ハズレ) 연출 — 電サポ 중 빈번, 통상 중 드물게.
       const reachloseRate = this.mode !== "NORMAL" ? 0.32 : 0.05;
       if (this.rng() < reachloseRate) {
-        return this.make("reachlose", this.pick([1, 2, 3, 4, 5, 6, 7, 8, 9]), this.randomLineVD(), 0, 0, false);
+        return this.make("reachlose", this.pick([1, 2, 3, 4, 5, 6, 7, 8, 9]), this.randomLine(), 0, 0, false);
       }
       return this.make("none", 0, null, 0, 0, false);
     }
@@ -155,15 +155,9 @@ export class OutcomeController {
     return arr[(this.rng() * arr.length) | 0]!;
   }
 
+  // 가로(row) 리치/오아다리는 없음 — 세로(col) 및 대각선(diag)만.
+  // (릴은 1→2→3행 순차 정지하며, 마지막 3행 셀이 라인을 완성한다.)
   private randomLine(): LineSpec {
-    const r = (this.rng() * 8) | 0;
-    if (r < 3) return { kind: "row", index: r };
-    if (r < 6) return { kind: "col", index: r - 3 };
-    return { kind: "diag", index: r - 6 };
-  }
-
-  // 리치 꽝 연출용 — 세로/대각선만(마지막 정지 행의 셀이 승패 결정).
-  private randomLineVD(): LineSpec {
     const r = (this.rng() * 5) | 0;
     if (r < 3) return { kind: "col", index: r };
     return { kind: "diag", index: r - 3 };

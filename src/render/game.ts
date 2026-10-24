@@ -31,15 +31,6 @@ function rnd9(): number {
   return 1 + Math.floor(Math.random() * 9);
 }
 
-function shuffle3(): [number, number, number] {
-  const a: number[] = [0, 1, 2];
-  for (let i = 2; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j]!, a[i]!];
-  }
-  return a as [number, number, number];
-}
-
 export class Game {
   private ctx: CanvasRenderingContext2D;
   private controller = new OutcomeController();
@@ -67,7 +58,6 @@ export class Game {
   private launching = false;
   private launchTimer = 0;
   private pendingSpins = 0;
-  private denpoTimer = 0; // 電サポ(확변/시단) 자동회전 타이머
 
   // 현재 스핀 상태.
   private outcome: Outcome | null = null;
@@ -191,8 +181,7 @@ export class Game {
   private startSpin(): void {
     const out = this.controller.next();
     this.outcome = out;
-    // 꽝은 보류가 밀리거나 電サポ 중이면 빠르게, 리치/오아다리는 끝까지 연출.
-    this.skip = (this.pendingSpins > 2 || out.special) && out.kind === "none";
+    // skip은 사용자 S키 요청시에만. 모든 스핀은 1행→2행→3행 순차 슬라이딩 정지를 보여준다.
     this.winGlow = 0;
     this.winLine = null;
     this.fx.setHype(0);
@@ -242,16 +231,17 @@ export class Game {
   }
 
   private scheduleStops(out: Outcome): void {
-    const order = shuffle3();
-    const base = this.dur(0.45);
-    const gap = (): number => this.dur(0.28 + Math.random() * 0.3);
+    // 1행 → 2행 → 3행 순차 정지 (위에서 아래로 차례대로 슬라이딩하며 멈춤).
+    const order: [number, number, number] = [0, 1, 2];
+    const base = this.dur(0.4);
+    const gap = (): number => this.dur(0.22 + Math.random() * 0.12);
     const delays: [number, number, number] = [0, 0, 0];
     let t = base;
     delays[order[0]] = t;
     t += gap();
     delays[order[1]] = t;
     t += gap();
-    if (out.kind !== "none") t += this.dur(out.kind === "ooatari" ? 3.4 : 1.0); // 서스펜스(오아다리 징조 길게)
+    if (out.kind !== "none") t += this.dur(out.kind === "ooatari" ? 3.4 : 1.0); // 서스펜스(마지막 3행 전, 오아다리 징조 길게)
     delays[order[2]] = t;
     this.stopDelay = delays;
     this.lastRow = order[2];
@@ -303,29 +293,18 @@ export class Game {
     // 물리 + 입상.
     const scored = this.playfield.update(dt);
     if (scored > 0) {
-      this.pendingSpins = Math.min(99, this.pendingSpins + scored);
+      this.pendingSpins = Math.min(4, this.pendingSpins + scored); // 보류 최대 4 (파친코 保留)
       this.hud.pending = this.pendingSpins;
       this.fx.flash("#2ee6c6", 0.22);
       for (let i = 0; i < scored; i++) this.audio.pocketIn(i * 0.05); // 한 개마다 효과음
       this.emit();
     }
 
-    // 릴 회전 트리거. 電サポ(확변/시단)는 전동 서포트로 자동회전, 통상은 입상 보류로.
-    if (this.phase === "idle") {
-      if (this.controller.isDenpo()) {
-        this.denpoTimer += dt;
-        if (this.denpoTimer >= 0.7) {
-          this.denpoTimer = 0;
-          this.startSpin();
-        }
-      } else {
-        this.denpoTimer = 0;
-        if (this.pendingSpins > 0) {
-          this.pendingSpins--;
-          this.hud.pending = this.pendingSpins;
-          this.startSpin();
-        }
-      }
+    // 릴 회전 트리거 — 노란색 홀(포켓)에 구슬이 입상(보류)됐을 때만 1회 회전. 자동회전 없음.
+    if (this.phase === "idle" && this.pendingSpins > 0) {
+      this.pendingSpins--;
+      this.hud.pending = this.pendingSpins;
+      this.startSpin();
     }
 
     switch (this.phase) {
