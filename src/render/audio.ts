@@ -148,41 +148,56 @@ export class AudioManager {
     this.blip(1980, 0.07, this.master, "sine", delay + 0.03, 0.22);
   }
 
-  // ---- 릴 회전 사운드 (전자 휠 + 빠른 아르페지오, 회전 중 루프) ----
+  // ---- 릴 회전 사운드 — 경쾌한 음악(멜로디+베이스+하이햇), 아주 큰 볼륨. 회전 중 루프, 멈추면 정지. ----
   startReelSpin(): void {
     if (!this.ctx || !this.master || this.reelSpinning) return;
     this.reelSpinning = true;
     this.reelGain = this.ctx.createGain();
-    this.reelGain.gain.value = 0.16;
+    this.reelGain.gain.value = 0.9; // 아주 큰 볼륨
     this.reelGain.connect(this.master);
-    // 전자 휠: 톱니 + 빠른 비브라토.
-    const osc = this.ctx.createOscillator();
-    osc.type = "sawtooth";
-    osc.frequency.value = 200;
-    const lfo = this.ctx.createOscillator();
-    lfo.frequency.value = 20;
-    const lfoGain = this.ctx.createGain();
-    lfoGain.gain.value = 46;
-    lfo.connect(lfoGain);
-    lfoGain.connect(osc.frequency);
-    const oscGain = this.ctx.createGain();
-    oscGain.gain.value = 0.4;
-    osc.connect(oscGain);
-    oscGain.connect(this.reelGain);
-    osc.start();
-    lfo.start();
-    this.reelOsc = osc;
-    this.reelLfo = lfo;
-    this.scheduleReelArp();
+    this.reelArpStep = 0;
+    this.scheduleReelMusic();
   }
 
-  private scheduleReelArp(): void {
+  // 경쾌한 멜로디(장조) + 통통 튀는 베이스 + 하이햇을 빠른 템포로 루프.
+  private scheduleReelMusic(): void {
     if (!this.reelSpinning || !this.reelGain) return;
-    const notes = [0, 4, 7, 12, 7, 4];
-    const f = 440 * 2 ** (notes[this.reelArpStep % notes.length]! / 12);
-    this.blip(f, 0.1, this.reelGain, "square", 0, 0.3);
+    const g = this.reelGain;
+    const step = this.reelArpStep;
+    // 밝은 장조 멜로디(C장조, 통통 튀게).
+    const melody = [0, 4, 7, 12, 7, 4, 7, 12, 5, 9, 12, 16, 12, 9, 7, 9];
+    const base = 523.25; // C5
+    const f = base * 2 ** (melody[step % melody.length]! / 12);
+    this.blip(f, 0.15, g, "square", 0, 0.6); // 멜로디
+    this.blip(f * 2, 0.08, g, "triangle", 0, 0.26); // 옥타브 반짝
+    // 베이스(다운비트 I–IV–V–IV).
+    if (step % 2 === 0) {
+      const bassPat = [0, 5, 7, 5];
+      const bSemi = bassPat[(step / 2) % bassPat.length]!;
+      this.blip(130.81 * 2 ** (bSemi / 12), 0.2, g, "sawtooth", 0, 0.5);
+    }
+    this.hat(step % 2 === 0 ? 0.16 : 0.1); // 하이햇
     this.reelArpStep++;
-    window.setTimeout(() => this.scheduleReelArp(), 110);
+    window.setTimeout(() => this.scheduleReelMusic(), 125);
+  }
+
+  // 하이햇(짧은 고역 노이즈).
+  private hat(vol: number): void {
+    if (!this.ctx || !this.reelGain) return;
+    const t = this.ctx.currentTime;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer(0.04);
+    const hp = this.ctx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 7000;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.045);
+    src.connect(hp);
+    hp.connect(g);
+    g.connect(this.reelGain);
+    src.start(t);
+    src.stop(t + 0.05);
   }
 
   stopReelSpin(): void {
