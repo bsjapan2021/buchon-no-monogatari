@@ -40,9 +40,9 @@ export class Stampede {
   private dust: Dust[] = [];
   private w = 0;
   private h = 0;
-  private t = 0;
+  private running = false;
   private spawnT = 0;
-  private readonly dur = 2.8;
+  private maxT = 0; // 안전 상한(영상이 안 끝나도 무한 생성 방지)
 
   resize(w: number, h: number): void {
     this.w = w;
@@ -50,17 +50,27 @@ export class Stampede {
   }
 
   isActive(): boolean {
-    return this.t > 0 || this.boars.length > 0;
+    return this.running || this.boars.length > 0 || this.dust.length > 0;
   }
 
-  /** 멧돼지 떼 질주 시작. 질주 중이면 재시작하지 않음. */
+  isRunning(): boolean {
+    return this.running;
+  }
+
+  /** 멧돼지 떼 질주 시작 — stop() 전까지 계속 생성(영상 재생 동안). */
   start(w: number, h: number): void {
     this.w = w;
     this.h = h;
-    if (this.t > 0) return;
-    this.t = this.dur;
+    this.maxT = 40; // 안전 상한(초)
+    if (this.running) return;
+    this.running = true;
     this.spawnT = 0;
     for (let i = 0; i < 8; i++) this.spawnBoar(Math.random() * this.w * 0.5);
+  }
+
+  /** 생성 중단(영상 종료 시). 남은 멧돼지는 마저 지나간다. */
+  stop(): void {
+    this.running = false;
   }
 
   private spawnBoar(extra = 0): void {
@@ -87,10 +97,11 @@ export class Stampede {
   }
 
   update(dt: number): void {
-    if (this.t > 0) {
-      this.t -= dt;
+    if (this.running) {
+      this.maxT -= dt;
+      if (this.maxT <= 0) this.running = false;
       this.spawnT -= dt;
-      if (this.spawnT <= 0 && this.t > 0.5) {
+      if (this.spawnT <= 0) {
         this.spawnT = 0.07 + Math.random() * 0.1;
         this.spawnBoar();
         this.spawnBoar();

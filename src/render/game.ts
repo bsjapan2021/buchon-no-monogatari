@@ -114,6 +114,7 @@ export class Game {
   private reels: [Reel, Reel, Reel];
   private fx: Effects;
   private stampede = new Stampede(); // 오아다리 — 멧돼지 떼 질주
+  private boarSoundT = 0; // 발굽 사운드 반복 타이머
   private audio = new AudioManager();
 
   private w = 0;
@@ -528,8 +529,23 @@ export class Game {
 
     // 프리미엄 영상 재생 중엔 오아다리 다이나믹 효과(섬광/진동) 지속(영상 가독 위해 중간 강도).
     if (this.activeVideo) {
-      if (this.activeVideo.ended) this.activeVideo = null;
-      else this.fx.setHype(0.6);
+      if (this.activeVideo.ended) {
+        this.activeVideo = null;
+        this.stampede.stop(); // 영상이 끝나면 멧돼지 생성 중단(남은 놈은 마저 지나감)
+      } else {
+        this.fx.setHype(0.6);
+      }
+    }
+
+    // 멧돼지 질주 중엔 발굽 사운드를 반복 재생(영상 내내 들리게).
+    if (this.stampede.isRunning()) {
+      this.boarSoundT -= dt;
+      if (this.boarSoundT <= 0) {
+        this.audio.stampede(2.8);
+        this.boarSoundT = 2.6;
+      }
+    } else {
+      this.boarSoundT = 0;
     }
   }
 
@@ -589,8 +605,8 @@ export class Game {
       this.reachStreak = 0;
       this.playVideo("11");
       this.audio.ooatari();
-      this.stampede.start(this.w, this.h); // 멧돼지 떼 질주
-      this.audio.stampede(3.0); // 떼 질주 사운드
+      this.stampede.start(this.w, this.h); // 멧돼지 떼 질주 — 영상 끝날 때까지 계속
+      this.boarSoundT = 0; // 발굽 사운드 즉시 재생(이후 루프)
       this.fx.setHypeTint(t.beam);
       this.fx.startFireworks(t.fwDur, t.fw);
       if (t.split) this.fx.startSplit(t.color, 0.8);
