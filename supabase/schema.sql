@@ -87,6 +87,10 @@ create policy gs_rw_self on public.game_states
   for all using (auth.uid() = user_id or public.is_admin())
   with check (auth.uid() = user_id);
 
--- 실시간(관리자 콘솔 자동 갱신)용
-alter publication supabase_realtime add table public.profiles;
-alter publication supabase_realtime add table public.sessions;
+-- 실시간(관리자 콘솔 자동 갱신)용 — 이미 추가돼 있어도 에러 없이.
+do $$ begin
+  alter publication supabase_realtime add table public.profiles;
+exception when others then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.sessions;
+exception when others then null; end $$;
