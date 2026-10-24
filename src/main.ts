@@ -91,31 +91,45 @@ game.onHud = (h: HudData) => {
 };
 
 // ---- 구슬 박스 (1000=투명, 많으면 2열, 초과 시 빨강 3000 교환) ----
+// 박스 단계: 투명 1,000 → 빨강 3,000 → 녹색 10,000.
+type BoxTier = "clear" | "red" | "green";
 let lastBoxKey = "";
-const CLEAR_CAP = 20; // 투명 1000박스가 이보다 많으면 빨강(3000)으로 교환
+const CLEAR_CAP = 20; // 투명(1000) 20개(=2만) 초과 시 빨강(3000)으로
+const RED_CAP = 20; // 빨강(3000) 20개(=6만) 초과 시 녹색(10000)으로
 function renderBoxes(held: number): void {
-  const n1000 = Math.floor(held / 1000);
+  let greens = 0;
   let reds = 0;
   let clears = 0;
-  if (n1000 > CLEAR_CAP) {
+  const n1000 = Math.floor(held / 1000);
+  if (n1000 <= CLEAR_CAP) {
+    clears = n1000;
+  } else if (Math.floor(held / 3000) <= RED_CAP) {
     reds = Math.floor(held / 3000);
     clears = Math.floor((held - reds * 3000) / 1000);
   } else {
-    clears = n1000;
+    greens = Math.floor(held / 10000);
+    const rem = held - greens * 10000;
+    reds = Math.floor(rem / 3000);
+    clears = Math.floor((rem - reds * 3000) / 1000);
   }
-  const key = `${reds}:${clears}`;
+  const key = `${greens}:${reds}:${clears}`;
   if (key === lastBoxKey) return;
   lastBoxKey = key;
-  const items: boolean[] = [];
-  for (let i = 0; i < reds; i++) items.push(true);
-  for (let i = 0; i < clears; i++) items.push(false);
+  const items: BoxTier[] = [];
+  for (let i = 0; i < greens; i++) items.push("green");
+  for (let i = 0; i < reds; i++) items.push("red");
+  for (let i = 0; i < clears; i++) items.push("clear");
   const L = Math.ceil(items.length / 2);
   el("boxes-left").innerHTML = itemsHtml(items.slice(0, L));
   el("boxes-right").innerHTML = itemsHtml(items.slice(L));
 }
-function itemsHtml(arr: boolean[]): string {
+function itemsHtml(arr: BoxTier[]): string {
   return arr
-    .map((red) => `<div class="ballbox${red ? " red" : ""}"><span class="bb-label">${red ? "3000" : "ブチョン"}</span></div>`)
+    .map((t) => {
+      const cls = t === "green" ? " green" : t === "red" ? " red" : "";
+      const label = t === "green" ? "10000" : t === "red" ? "3000" : "ブチョン";
+      return `<div class="ballbox${cls}"><span class="bb-label">${label}</span></div>`;
+    })
     .join("");
 }
 

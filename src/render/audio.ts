@@ -323,6 +323,57 @@ export class AudioManager {
     for (let i = 0; i < 6; i++) this.noiseBurst(0.1 + i * 0.17, 0.12, 0.3);
   }
 
+  /** 원자폭탄급 폭발음 — 초저역 붐 + 광대역 크랙 + 긴 럼블. 아주 큰 볼륨. */
+  nuke(): void {
+    if (!this.ctx || !this.master) return;
+    this.suddenLoud(2.8); // 마스터 볼륨 급상승(오래 유지)
+    const t = this.ctx.currentTime;
+    // 초기 크랙(광대역 노이즈, 매우 큼).
+    this.noiseBurst(0, 0.35, 1.0);
+    this.noiseBurst(0.02, 0.6, 0.8);
+    // 저역 붐(사인 스윕 다운).
+    const o = this.ctx.createOscillator();
+    o.type = "sine";
+    o.frequency.setValueAtTime(150, t);
+    o.frequency.exponentialRampToValueAtTime(22, t + 1.7);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(1.0, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 2.4);
+    o.connect(g);
+    g.connect(this.master);
+    o.start(t);
+    o.stop(t + 2.5);
+    // 서브 썸프(쿵).
+    const o2 = this.ctx.createOscillator();
+    o2.type = "sine";
+    o2.frequency.setValueAtTime(70, t);
+    o2.frequency.exponentialRampToValueAtTime(28, t + 0.9);
+    const g2 = this.ctx.createGain();
+    g2.gain.setValueAtTime(0.95, t);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 1.3);
+    o2.connect(g2);
+    g2.connect(this.master);
+    o2.start(t);
+    o2.stop(t + 1.4);
+    // 긴 럼블(로우패스 노이즈).
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer(3.4);
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(140, t);
+    lp.frequency.exponentialRampToValueAtTime(55, t + 3.2);
+    const gr = this.ctx.createGain();
+    gr.gain.setValueAtTime(0.0001, t);
+    gr.gain.linearRampToValueAtTime(0.8, t + 0.25);
+    gr.gain.exponentialRampToValueAtTime(0.001, t + 3.4);
+    src.connect(lp);
+    lp.connect(gr);
+    gr.connect(this.master);
+    src.start(t);
+    src.stop(t + 3.5);
+  }
+
   /** 멧돼지 떼 질주 — 낮은 발굽 우르릉(갤럽 트레몰로) + 간헐 꿀꿀/괴성. */
   stampede(dur = 3.0): void {
     if (!this.ctx || !this.master) return;

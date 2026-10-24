@@ -2,6 +2,7 @@
 import { Reel } from "./reel.js";
 import { Effects } from "./effects.js";
 import { Stampede } from "./boars.js";
+import { Nuke } from "./nuke.js";
 import { drawBackground } from "./background.js";
 import { paletteFor, getCharImage, getOmenImage, getPremiumImage, drawSymbol } from "./symbols.js";
 import { Playfield, type PanelRect } from "./playfield.js";
@@ -115,6 +116,8 @@ export class Game {
   private fx: Effects;
   private stampede = new Stampede(); // 오아다리 — 멧돼지 떼 질주
   private boarSoundT = 0; // 발굽 사운드 반복 타이머
+  private nuke = new Nuke(); // 오아다리 3연속 — 원자폭탄 폭발
+  private ooatariStreak = 0; // 연속 오아다리 횟수
   private audio = new AudioManager();
 
   private w = 0;
@@ -326,6 +329,7 @@ export class Game {
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.fx.resize(this.w, this.h);
     this.stampede.resize(this.w, this.h);
+    this.nuke.resize(this.w, this.h);
     this.playfield.layout(this.w, this.h, this.panelRect(), this.holeMouthY());
   }
 
@@ -419,6 +423,7 @@ export class Game {
     this.time += dt;
     this.fx.update(dt);
     this.stampede.update(dt);
+    this.nuke.update(dt);
     for (const r of this.reels) r.update(dt);
     if (this.winGlow > 0) this.winGlow = Math.max(0, this.winGlow - dt * 0.4);
 
@@ -603,10 +608,18 @@ export class Game {
       const t = this.theme ?? OOATARI_THEMES[0]!;
       // 오아다리 → 11.mov + 테마별 프리미엄 연출(색·불꽃·분할·충격파·진동).
       this.reachStreak = 0;
+      this.ooatariStreak++;
       this.playVideo("11");
       this.audio.ooatari();
       this.stampede.start(this.w, this.h); // 멧돼지 떼 질주 — 영상 끝날 때까지 계속
       this.boarSoundT = 0; // 발굽 사운드 즉시 재생(이후 루프)
+      // 오아다리 3연속 이상 → 화면 중앙 원자폭탄급 폭발.
+      if (this.ooatariStreak >= 3) {
+        this.nuke.start(this.w, this.h);
+        this.audio.nuke();
+        this.fx.flash("#ffffff", 1);
+        this.fx.shake(2.2, 1.3);
+      }
       this.fx.setHypeTint(t.beam);
       this.fx.startFireworks(t.fwDur, t.fw);
       if (t.split) this.fx.startSplit(t.color, 0.8);
@@ -627,6 +640,7 @@ export class Game {
       const t = this.theme ?? REACH_THEMES[0]!;
       // 2회 이상 연속 리치 → 12.mov 재생.
       this.reachStreak++;
+      this.ooatariStreak = 0;
       if (this.reachStreak >= 2) this.playVideo("12");
       this.audio.reach();
       this.fx.setHypeTint(t.beam);
@@ -647,6 +661,7 @@ export class Game {
     } else if (out.kind === "reachlose") {
       // 리치 꽝(ハズレ) — 연출만, 당첨 없음.
       this.fx.setHypeTint(null);
+      this.ooatariStreak = 0;
       this.winLine = null;
       this.winGlow = 0;
       this.fx.shake(0.4, 0.3);
@@ -656,6 +671,7 @@ export class Game {
       this.winLine = null;
       this.winGlow = 0;
       this.reachStreak = 0;
+      this.ooatariStreak = 0;
       this.hud.message = "꽝";
     }
     this.audio.setMode(out.special ? "SUPER" : "NORMAL");
@@ -786,6 +802,7 @@ export class Game {
     }
     this.fx.drawOverlay(ctx);
     this.fx.drawFireworks(ctx); // 폭죽은 영상·패널 위 최상단
+    this.nuke.draw(ctx); // 원자폭탄 폭발은 최상단
   }
 
   private drawVideo(ctx: CanvasRenderingContext2D): void {
