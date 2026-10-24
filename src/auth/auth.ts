@@ -158,6 +158,21 @@ export async function setBlocked(userId: string, blocked: boolean): Promise<void
   if (blocked) await db().from("sessions").update({ active: false }).eq("user_id", userId);
 }
 
+// ---- 게임 상태 저장/복원 ----
+export async function loadGameState(): Promise<Record<string, unknown> | null> {
+  const uid = await currentUserId();
+  if (!uid) return null;
+  const { data, error } = await db().from("game_states").select("state").eq("user_id", uid).single();
+  if (error || !data) return null;
+  return (data as { state: Record<string, unknown> }).state ?? null;
+}
+
+export async function saveGameState(state: Record<string, unknown>): Promise<void> {
+  const uid = await currentUserId();
+  if (!uid) return;
+  await db().from("game_states").upsert({ user_id: uid, state, updated_at: new Date().toISOString() });
+}
+
 export async function listActiveSessions(): Promise<SessionRow[]> {
   // 최근 2분 내 하트비트만 '접속중'으로 간주.
   const since = new Date(Date.now() - 120000).toISOString();

@@ -71,6 +71,20 @@ export class OutcomeController {
     return this.windowSpin;
   }
 
+  // ---- 상태 저장/복원(재접속 시) ----
+  getState(): { mode: Mode; jitanLeft: number; rush: boolean; windowSpin: number } {
+    return { mode: this.mode, jitanLeft: this.jitanLeft, rush: this.rush, windowSpin: this.windowSpin };
+  }
+  setState(s: { mode: Mode; jitanLeft: number; rush: boolean; windowSpin: number }): void {
+    this.mode = s.mode;
+    this.jitanLeft = s.jitanLeft;
+    this.rush = s.rush;
+    this.windowSpin = s.windowSpin;
+  }
+  getModeKey(): string {
+    return this.mode === "NORMAL" ? "normal" : this.rush ? "rush" : this.mode === "KAKUHEN" ? "kakuhen" : "jitan";
+  }
+
   next(): Outcome {
     this.windowSpin++;
     const denpo = this.mode !== "NORMAL";

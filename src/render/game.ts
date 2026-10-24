@@ -4,7 +4,7 @@ import { Effects } from "./effects.js";
 import { drawBackground } from "./background.js";
 import { paletteFor, getCharImage, getOmenImage, getPremiumImage, drawSymbol } from "./symbols.js";
 import { Playfield, type PanelRect } from "./playfield.js";
-import { OutcomeController, lineCells, type Outcome, type LineSpec } from "./outcome.js";
+import { OutcomeController, lineCells, type Outcome, type LineSpec, type Mode } from "./outcome.js";
 import { AudioManager } from "./audio.js";
 import v11 from "../assets/11.mp4";
 import v12 from "../assets/12.mp4";
@@ -20,6 +20,21 @@ export interface HudData {
   reachCount: number;
   totalSpins: number;
   message: string;
+}
+
+// 재접속 시 복원되는 게임 상태(전광판 + 모드 포함).
+export interface GameSnapshot {
+  held: number;
+  launched: number;
+  pending: number;
+  ooatari: number;
+  reachCount: number;
+  totalSpins: number;
+  winChar: number;
+  mode: Mode;
+  jitanLeft: number;
+  rush: boolean;
+  windowSpin: number;
 }
 
 type Phase = "idle" | "spinning" | "result" | "cooldown";
@@ -148,6 +163,7 @@ export class Game {
 
   // 프리미엄 영상 (사용자 제공).
   private videos: Record<string, HTMLVideoElement> = {};
+  private videosUnlocked = false;
   private activeVideo: HTMLVideoElement | null = null;
   private reachStreak = 0; // 연속 리치 횟수
 
@@ -193,10 +209,9 @@ export class Game {
     if (this.activeVideo === vd && !vd.ended) return;
     this.activeVideo = vd;
     vd.currentTime = 0;
-    vd.play().catch(() => {
-      vd.muted = true;
-      vd.play().catch(() => {});
-    });
+    vd.muted = false;
+    vd.volume = 1;
+    vd.play().catch(() => {}); // iOS는 unlockVideos()로 사전 해제했으므로 음소거하지 않음
   }
 
   setSpinSpeed(v: number): void {
@@ -208,6 +223,7 @@ export class Game {
 
   toggleAuto(): void {
     this.audio.start(); // 사용자 제스처 → 오디오 활성화
+    this.unlockVideos(); // iOS: 영상 소리 사전 해제
     if (this.held <= 0 && !this.launching) {
       this.hud.message = "보유 구슬이 없습니다";
       this.emit();
@@ -230,6 +246,70 @@ export class Game {
   /** 외부(스케일 변경 등)에서 재레이아웃을 강제. */
   relayout(): void {
     this.resize();
+  }
+
+  /** 현재 게임 상태 스냅샷(DB 저장용). */
+  snapshot(): GameSnapshot {
+    const cs = this.controller.getState();
+    return {
+      held: this.held,
+      launched: this.launched,
+      pending: this.pendingSpins,
+      ooatari: this.hud.ooatari,
+      reachCount: this.hud.reachCount,
+      totalSpins: this.hud.totalSpins,
+      winChar: this.winChar,
+      mode: cs.mode,
+      jitanLeft: cs.jitanLeft,
+      rush: cs.rush,
+      windowSpin: cs.windowSpin,
+    };
+  }
+
+  /** 저장된 상태로 복원(재접속 시). */
+  restore(s: Partial<GameSnapshot>): void {
+    if (typeof s.held === "number") this.held = s.held;
+    if (typeof s.launched === "number") this.launched = s.launched;
+    if (typeof s.pending === "number") this.pendingSpins = Math.min(4, Math.max(0, s.pending));
+    if (typeof s.ooatari === "number") this.hud.ooatari = s.ooatari;
+    if (typeof s.reachCount === "number") this.hud.reachCount = s.reachCount;
+    if (typeof s.totalSpins === "number") this.hud.totalSpins = s.totalSpins;
+    if (typeof s.winChar === "number") this.winChar = s.winChar;
+    this.controller.setState({
+      mode: (s.mode as Mode) ?? "NORMAL",
+      jitanLeft: s.jitanLeft ?? 0,
+      rush: s.rush ?? false,
+      windowSpin: s.windowSpin ?? 0,
+    });
+    const cs = this.controller.getState();
+    this.hud.held = this.held;
+    this.hud.launched = this.launched;
+    this.hud.pending = this.pendingSpins;
+    this.hud.mode = this.controller.getModeKey();
+    this.hud.special = cs.mode !== "NORMAL";
+    this.hud.windowSpin = cs.jitanLeft;
+    this.audio.setMode(cs.mode !== "NORMAL" ? "SUPER" : "NORMAL");
+    this.emit();
+  }
+
+  /** iOS/모바일: 첫 사용자 제스처에서 영상 재생을 사전 해제(오아다리 영상 소리 보장). */
+  unlockVideos(): void {
+    if (this.videosUnlocked) return;
+    this.videosUnlocked = true;
+    for (const vd of Object.values(this.videos)) {
+      vd.muted = false;
+      const vol = vd.volume || 1;
+      vd.volume = 0; // 무음으로 잠깐 재생→정지하여 iOS 재생 권한 획득
+      vd.play()
+        .then(() => {
+          vd.pause();
+          vd.currentTime = 0;
+          vd.volume = vol;
+        })
+        .catch(() => {
+          vd.volume = vol;
+        });
+    }
   }
 
   private resize(): void {

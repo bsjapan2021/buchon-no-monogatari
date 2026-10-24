@@ -75,6 +75,18 @@ drop policy if exists sessions_update on public.sessions;
 create policy sessions_update on public.sessions
   for update using (auth.uid() = user_id or public.is_admin());
 
+-- ===== 6) 게임 상태 저장(재접속 시 구슬·회전·모드 등 그대로 복원) =====
+create table if not exists public.game_states (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  state jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.game_states enable row level security;
+drop policy if exists gs_rw_self on public.game_states;
+create policy gs_rw_self on public.game_states
+  for all using (auth.uid() = user_id or public.is_admin())
+  with check (auth.uid() = user_id);
+
 -- 실시간(관리자 콘솔 자동 갱신)용
 alter publication supabase_realtime add table public.profiles;
 alter publication supabase_realtime add table public.sessions;

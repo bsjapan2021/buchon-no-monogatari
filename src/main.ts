@@ -1,7 +1,8 @@
 // 부트스트랩 — 캔버스/HUD 연결, 입력 바인딩, 메인 루프.
-import { Game, type HudData } from "./render/game.js";
+import { Game, type HudData, type GameSnapshot } from "./render/game.js";
 import "./auth/auth.css";
 import { initGate } from "./auth/overlay.js";
+import { loadGameState, saveGameState, type Profile } from "./auth/auth.js";
 
 let started = false; // 로그인 승인 후 게임 시작 여부
 
@@ -182,13 +183,50 @@ window.addEventListener("orientationchange", () => {
 window.addEventListener("pageshow", applyScale);
 window.addEventListener("load", applyScale);
 
+// ---- 상태 저장(재접속 복원) : 로그인=DB, 게스트=localStorage ----
+const LS_KEY = "buchon-state";
+function loadLocal(): Partial<GameSnapshot> | null {
+  try {
+    const s = localStorage.getItem(LS_KEY);
+    return s ? (JSON.parse(s) as Partial<GameSnapshot>) : null;
+  } catch {
+    return null;
+  }
+}
+function saveLocal(s: GameSnapshot): void {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(s));
+  } catch {
+    /* 무시 */
+  }
+}
+
 // ---- 로그인 승인 후 게임 시작 ----
-function startGame(): void {
+async function startGame(profile: Profile): Promise<void> {
   if (started) return;
   started = true;
   document.body.classList.add("authed");
+  // 저장된 상태 복원.
+  try {
+    const snap = profile.id === "guest" ? loadLocal() : ((await loadGameState()) as Partial<GameSnapshot> | null);
+    if (snap) game.restore(snap);
+  } catch {
+    /* 무시 */
+  }
   applyScale();
   setTimeout(applyScale, 200);
+  // 상태 저장 — 5초 주기 + 이탈/백그라운드 시.
+  const save = (): void => {
+    const s = game.snapshot();
+    if (profile.id === "guest") saveLocal(s);
+    else void saveGameState(s as unknown as Record<string, unknown>);
+  };
+  setInterval(save, 5000);
+  window.addEventListener("beforeunload", save);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) save();
+  });
+  // 메인 루프.
   let last = performance.now();
   const frame = (now: number): void => {
     const dt = Math.min(0.05, (now - last) / 1000);
@@ -201,4 +239,6 @@ function startGame(): void {
 }
 
 // 스플래시/로그인 게이트 — 승인되면 게임 시작.
-initGate(() => startGame());
+initGate((p) => {
+  void startGame(p);
+});
