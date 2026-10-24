@@ -28,9 +28,9 @@ export interface Outcome {
 }
 
 const DENOM = 65536;
-// 통상/시단 대당첨(리치·오아다리) 확률 = 30% (사용자 요청). 確變(RUSH)은 그보다 높게 유지.
-const P_NORMAL = Math.round(DENOM * 0.3);
-const P_KAKUHEN = Math.round(DENOM * 0.5);
+// 당첨 중 오아다리(확변) 비중 60%. 통상/시단 당첨 6.5% → 오아다리 ≈ 3.9% (요청: 3.8~3.95%), 리치 ≈ 2.6%.
+const P_NORMAL = Math.round(DENOM * 0.065);
+const P_KAKUHEN = Math.round(DENOM * 0.5); // 確變(RUSH)은 높게 유지
 
 interface RoundDef {
   round: number;
