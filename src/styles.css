@@ -281,23 +281,43 @@ html, body {
   .counters li { font-size: 13px; }
   .topbar h1 { font-size: 22px; letter-spacing: 2px; }
 }
-@media (max-width: 760px) {
-  html, body { overflow: auto; }
-  #app {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
-    grid-template-areas: "top" "stage" "hud";
-    height: auto;
-    min-height: 100vh;
+/* 좁은 가로 화면(모바일 가로모드 등) — PC와 동일한 좌우 배치 유지, 축소만. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #app { grid-template-columns: 1fr minmax(150px, 190px); gap: 6px; padding: 6px; }
+  .topbar { padding: 2px 8px; }
+  .topbar h1 { font-size: 18px; letter-spacing: 1px; }
+  .hud { padding: 7px; gap: 5px; }
+  .hud .status { padding-bottom: 6px; }
+  .st-state span { font-size: 18px; }
+  .counters { gap: 3px; }
+  .counters li { font-size: 11px; padding-bottom: 3px; }
+  .sliders { gap: 6px; padding: 6px 0; }
+  .sliders label { font-size: 11px; }
+  .controls { gap: 5px; }
+  .controls button { padding: 7px; font-size: 12px; }
+  .license { font-size: 8px; }
+  .scoreboard { transform: translateX(-50%) scale(0.78); padding: 5px 8px; }
+  .ballbox { width: 44px; height: 24px; }
+}
+
+/* 세로모드(모바일) — 게임이 제대로 동작하지 않으므로 가로 회전 안내. */
+.rotate-hint { display: none; }
+@media (orientation: portrait) and (max-width: 900px) {
+  .rotate-hint {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: radial-gradient(circle at 50% 30%, #0a3850, #04121c 70%);
+    color: var(--gold);
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 2.1;
+    padding: 24px;
   }
-  .stage { height: 58vh; min-height: 320px; }
-  .hud { max-height: none; }
-  .ballboxes { width: auto; max-width: 92px; }
-  .ballbox { width: 42px; height: 24px; }
-  .scoreboard { transform: translateX(-50%) scale(0.86); }
+  .rh-icon { font-size: 54px; margin-bottom: 18px; animation: rhSpin 2.2s ease-in-out infinite; }
 }
-@media (max-width: 460px) {
-  .stage { height: 52vh; }
-  .ballbox { width: 34px; height: 20px; }
-  .bb-label { font-size: 6px; }
-}
+@keyframes rhSpin { 0%, 60% { transform: rotate(0); } 80%, 100% { transform: rotate(90deg); } }

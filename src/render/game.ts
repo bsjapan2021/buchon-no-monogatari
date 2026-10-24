@@ -200,8 +200,8 @@ export class Game {
     this.omenSwitched = false;
     this.omenBig = false;
 
+    this.scheduleStops(out); // lastRow 먼저 결정
     this.buildDisplay(out);
-    this.scheduleStops(out);
 
     const speed = this.stepX() * 11 * this.spinSpeedMul;
     for (const r of this.reels) r.startSpin(speed);
@@ -219,10 +219,18 @@ export class Game {
       [rnd9(), rnd9(), rnd9()],
     ];
     const off: [number, number, number] = [this.randOffset(), this.randOffset(), this.randOffset()];
-    if (out.kind !== "none" && out.line) {
+    if (out.line && (out.kind === "reach" || out.kind === "ooatari")) {
+      // 완전 정렬(당첨).
       const cells = lineCells(out.line);
       for (const [r, c] of cells) g[r]![c] = out.number;
-      for (const r of new Set(cells.map(([r]) => r))) off[r] = 0; // 정위치
+      for (const r of new Set(cells.map(([r]) => r))) off[r] = 0;
+    } else if (out.line && out.kind === "reachlose") {
+      // 리치 꽝: 마지막 정지 행의 셀만 불일치(2개 일치 + 1개 어긋남).
+      const cells = lineCells(out.line);
+      let diff = rnd9();
+      while (diff === out.number) diff = rnd9();
+      for (const [r, c] of cells) g[r]![c] = r === this.lastRow ? diff : out.number;
+      for (const r of new Set(cells.map(([r]) => r))) off[r] = 0;
     }
     this.displayGrid = g;
     this.offsets = off;
@@ -449,6 +457,12 @@ export class Game {
       this.hud.reachCount++;
       this.fx.showCutin("リーチ / 리치!", `${out.round}R 通常 +${payout}구슬`, pal.glow);
       this.hud.message = `リーチ(리치)! ${out.round}R通常 (+${payout})`;
+    } else if (out.kind === "reachlose") {
+      // 리치 꽝(ハズレ) — 연출만, 당첨 없음.
+      this.winLine = null;
+      this.winGlow = 0;
+      this.fx.shake(0.4, 0.3);
+      this.hud.message = "リーチ…ハズレ / 아깝다";
     } else {
       this.winLine = null;
       this.winGlow = 0;

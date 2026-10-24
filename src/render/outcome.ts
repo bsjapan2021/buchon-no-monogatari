@@ -3,7 +3,8 @@
 // 당첨 도안: 짝수=파랑(통상 계열), 홀수=빨강(확변 계열).
 // 주: 특정 상용기종의 고유 연출명/상표는 사용하지 않는다. 수치만 참조.
 
-export type SpinKind = "none" | "reach" | "ooatari"; // reach=짝수(통상), ooatari=홀수(확변)
+// none=꽝, reachlose=리치 연출 후 꽝(ハズレ), reach=짝수 당첨(통상), ooatari=홀수 당첨(확변)
+export type SpinKind = "none" | "reachlose" | "reach" | "ooatari";
 export type Mode = "NORMAL" | "KAKUHEN" | "JITAN";
 export type LineKind = "row" | "col" | "diag";
 
@@ -85,6 +86,11 @@ export class OutcomeController {
           this.windowSpin = 0;
         }
       }
+      // 리치 꽝(ハズレ) 연출 — 電サポ 중 빈번, 통상 중 드물게.
+      const reachloseRate = this.mode !== "NORMAL" ? 0.32 : 0.05;
+      if (this.rng() < reachloseRate) {
+        return this.make("reachlose", this.pick([1, 2, 3, 4, 5, 6, 7, 8, 9]), this.randomLineVD(), 0, 0, false);
+      }
       return this.make("none", 0, null, 0, 0, false);
     }
 
@@ -154,6 +160,13 @@ export class OutcomeController {
     if (r < 3) return { kind: "row", index: r };
     if (r < 6) return { kind: "col", index: r - 3 };
     return { kind: "diag", index: r - 6 };
+  }
+
+  // 리치 꽝 연출용 — 세로/대각선만(마지막 정지 행의 셀이 승패 결정).
+  private randomLineVD(): LineSpec {
+    const r = (this.rng() * 5) | 0;
+    if (r < 3) return { kind: "col", index: r };
+    return { kind: "diag", index: r - 3 };
   }
 }
 
