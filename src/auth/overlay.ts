@@ -8,7 +8,6 @@ import {
   resetPassword,
   updatePassword,
   myProfile,
-  isAdminEmail,
   startSession,
   heartbeat,
   listMembers,
@@ -23,7 +22,11 @@ import { SplashFx } from "./splashFx.js";
 
 type View = "login" | "signup" | "forgot" | "reset";
 
-export function initGate(onApproved: (p: Profile) => void): void {
+export interface GateController {
+  openAdmin: () => void;
+}
+
+export function initGate(onApproved: (p: Profile) => void): GateController {
   let lang: AuthLang = (localStorage.getItem("lang") as AuthLang) || "ko";
   let view: View = "login";
   let fx: SplashFx | null = null;
@@ -67,7 +70,6 @@ export function initGate(onApproved: (p: Profile) => void): void {
         <section><h3 id="ga-online-h"></h3><div id="ga-online"></div></section>
       </div>
     </div>
-    <button class="gate-adminbtn" id="gate-adminbtn" hidden>⚙</button>
   `;
   document.body.appendChild(root);
 
@@ -162,9 +164,6 @@ export function initGate(onApproved: (p: Profile) => void): void {
     // 승인됨 → 입장.
     await startSession(p);
     startPolling();
-    if (p.role === "admin" || isAdminEmail(p.email)) {
-      $("gate-adminbtn").hidden = false;
-    }
     hideGate();
     onApproved(p);
   }
@@ -237,10 +236,10 @@ export function initGate(onApproved: (p: Profile) => void): void {
   });
 
   // ---- 관리자 콘솔 ----
-  $("gate-adminbtn").addEventListener("click", () => {
+  function openAdmin(): void {
     $("gate-admin").hidden = false;
     refreshAdmin();
-  });
+  }
   $("ga-close").addEventListener("click", () => ($("gate-admin").hidden = true));
   $("ga-refresh").addEventListener("click", () => refreshAdmin());
   $("ga-logout").addEventListener("click", async () => {
@@ -345,6 +344,8 @@ export function initGate(onApproved: (p: Profile) => void): void {
     evaluate().catch(() => {}); // 기존 세션이 있으면 자동 입장 평가
   }
   showGate();
+
+  return { openAdmin };
 }
 
 function esc(s: string | null): string {

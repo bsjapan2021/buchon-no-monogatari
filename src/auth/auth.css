@@ -1,3 +1,53 @@
+/* 게임 내 계정 바 (로그인 사용자 + 관리자 콘솔 + 로그아웃) */
+.account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 2px;
+  border-radius: 10px;
+  background: rgba(10, 40, 60, 0.5);
+  border: 1px solid var(--line);
+}
+.account[hidden] {
+  display: none;
+}
+.acc-user {
+  font-size: 13px;
+  font-weight: 700;
+  color: #9fd8ef;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acc-btns {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.acc-btns button {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(10, 60, 90, 0.6);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.acc-btns button[hidden] {
+  display: none;
+}
+#acc-admin {
+  border-color: #ffcf3a;
+  color: #ffcf3a;
+}
+#acc-logout {
+  border-color: #ff8a8a;
+  color: #ff8a8a;
+}
+
 /* 로그인/스플래시/관리자 콘솔 */
 #gate {
   position: fixed;

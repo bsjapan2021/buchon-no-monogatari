@@ -1,8 +1,10 @@
 // 부트스트랩 — 캔버스/HUD 연결, 입력 바인딩, 메인 루프.
 import { Game, type HudData, type GameSnapshot } from "./render/game.js";
 import "./auth/auth.css";
-import { initGate } from "./auth/overlay.js";
-import { loadGameState, saveGameState, type Profile } from "./auth/auth.js";
+import { initGate, type GateController } from "./auth/overlay.js";
+import { loadGameState, saveGameState, signOut, type Profile } from "./auth/auth.js";
+
+let gateCtl: GateController | null = null;
 
 let started = false; // 로그인 승인 후 게임 시작 여부
 
@@ -21,6 +23,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     ooatari: "大当たり·오아다리", reach: "리치(짝수)", spins: "총 회전수",
     speed: "회전 속도", stop: "멈춤 시간",
     fire: "구슬 발사 / 정지 (Space)", skip: "스킵 (S)", lang: "日本語",
+    admin_console_btn: "관리자 콘솔", logout_btn: "로그아웃",
     sb_spins: "회전", sb_held: "구슬", sb_pending: "보류", sb_reach: "금일 리치", sb_super: "금일 大当たり",
     hint: "왼쪽 아래에서 구슬 발사 → 못에 튕겨 입상 → 숫자 회전",
     mode_normal: "통상", mode_kakuhen: "確変", mode_jitan: "時短", mode_rush: "RUSH", mode_suffix: " 모드",
@@ -31,6 +34,7 @@ const I18N: Record<Lang, Record<string, string>> = {
     ooatari: "大当たり", reach: "リーチ(偶数)", spins: "総回転数",
     speed: "回転速度", stop: "停止時間",
     fire: "玉発射 / 停止 (Space)", skip: "スキップ (S)", lang: "한국어",
+    admin_console_btn: "管理者コンソール", logout_btn: "ログアウト",
     sb_spins: "回転", sb_held: "持ち玉", sb_pending: "保留", sb_reach: "本日リーチ", sb_super: "本日大当たり",
     hint: "左下から玉発射 → 釘に弾かれ入賞 → 数字回転",
     mode_normal: "通常", mode_kakuhen: "確変", mode_jitan: "時短", mode_rush: "RUSH", mode_suffix: "モード",
@@ -202,10 +206,27 @@ function saveLocal(s: GameSnapshot): void {
 }
 
 // ---- 로그인 승인 후 게임 시작 ----
+function setupAccountBar(profile: Profile): void {
+  const acc = document.getElementById("account");
+  if (!acc) return;
+  acc.hidden = false;
+  el("acc-user").textContent = "👤 " + (profile.name || profile.email || "GUEST");
+  const adminBtn = el("acc-admin") as HTMLButtonElement;
+  if (profile.role === "admin") {
+    adminBtn.hidden = false;
+    adminBtn.onclick = () => gateCtl?.openAdmin();
+  }
+  el("acc-logout").addEventListener("click", async () => {
+    await signOut();
+    location.reload();
+  });
+}
+
 async function startGame(profile: Profile): Promise<void> {
   if (started) return;
   started = true;
   document.body.classList.add("authed");
+  setupAccountBar(profile);
   // 저장된 상태 복원.
   try {
     const snap = profile.id === "guest" ? loadLocal() : ((await loadGameState()) as Partial<GameSnapshot> | null);
@@ -239,6 +260,6 @@ async function startGame(profile: Profile): Promise<void> {
 }
 
 // 스플래시/로그인 게이트 — 승인되면 게임 시작.
-initGate((p) => {
+gateCtl = initGate((p) => {
   void startGame(p);
 });
