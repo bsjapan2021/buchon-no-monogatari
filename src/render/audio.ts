@@ -141,9 +141,11 @@ export class AudioManager {
   }
 
   // ---- 효과음 ----
-  pocketIn(): void {
+  /** 구슬 입상음 — 밝은 금속성 '플링'(한 개마다). delay로 겹침 방지. */
+  pocketIn(delay = 0): void {
     if (!this.master) return;
-    this.blip(900, 0.07, this.master, "square", 0, 0.1);
+    this.blip(1320, 0.09, this.master, "triangle", delay, 0.3);
+    this.blip(1980, 0.07, this.master, "sine", delay + 0.03, 0.22);
   }
 
   // ---- 릴 회전 사운드 (전자 휠 + 빠른 아르페지오, 회전 중 루프) ----

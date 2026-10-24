@@ -297,7 +297,7 @@ export class Game {
       this.pendingSpins = Math.min(99, this.pendingSpins + scored);
       this.hud.pending = this.pendingSpins;
       this.fx.flash("#2ee6c6", 0.22);
-      this.audio.pocketIn();
+      for (let i = 0; i < scored; i++) this.audio.pocketIn(i * 0.05); // 한 개마다 효과음
       this.emit();
     }
 
