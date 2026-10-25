@@ -1,5 +1,5 @@
 // 부트스트랩 — 캔버스/HUD 연결, 입력 바인딩, 메인 루프.
-import { Game, type HudData, type GameSnapshot } from "./render/game.js";
+import { Game, localDayStr, type HudData, type GameSnapshot } from "./render/game.js";
 import "./auth/auth.css";
 import { initGate, type GateController } from "./auth/overlay.js";
 import { loadGameState, saveGameState, signOut, type Profile } from "./auth/auth.js";
@@ -262,7 +262,14 @@ async function startGame(profile: Profile): Promise<void> {
   applyScale();
   setTimeout(applyScale, 200);
   // 상태 저장 — 5초 주기 + 이탈/백그라운드 시.
+  // 플레이 중 자정을 넘기면 금일 카운터(회전/리치/오아다리) 자동 초기화.
+  let lastDay = localDayStr();
   const save = (): void => {
+    const today = localDayStr();
+    if (today !== lastDay) {
+      game.resetDaily();
+      lastDay = today;
+    }
     const s = game.snapshot();
     if (profile.id === "guest") saveLocal(s);
     else void saveGameState(s as unknown as Record<string, unknown>);

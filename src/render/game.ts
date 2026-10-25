@@ -37,6 +37,15 @@ export interface GameSnapshot {
   jitanLeft: number;
   rush: boolean;
   windowSpin: number;
+  day?: string; // 저장 시점의 로컬 날짜(YYYY-MM-DD). 날짜가 바뀌면 금일 카운터 리셋.
+}
+
+/** 로컬 날짜 문자열(YYYY-MM-DD) — 금일 카운터(회전/리치/오아다리) 리셋 기준. */
+export function localDayStr(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 type Phase = "idle" | "spinning" | "result" | "cooldown";
@@ -269,17 +278,28 @@ export class Game {
       jitanLeft: cs.jitanLeft,
       rush: cs.rush,
       windowSpin: cs.windowSpin,
+      day: localDayStr(),
     };
+  }
+
+  /** 날짜가 바뀌면 금일 카운터(회전/리치/오아다리)만 0으로 초기화. 보유 구슬·모드는 유지. */
+  resetDaily(): void {
+    this.hud.totalSpins = 0;
+    this.hud.reachCount = 0;
+    this.hud.ooatari = 0;
+    this.emit();
   }
 
   /** 저장된 상태로 복원(재접속 시). */
   restore(s: Partial<GameSnapshot>): void {
+    // 저장일이 오늘이 아니면(=날짜가 바뀜) 금일 카운터는 복원하지 않고 0부터 시작.
+    const sameDay = s.day == null || s.day === localDayStr();
     if (typeof s.held === "number") this.held = s.held;
     if (typeof s.launched === "number") this.launched = s.launched;
     if (typeof s.pending === "number") this.pendingSpins = Math.min(4, Math.max(0, s.pending));
-    if (typeof s.ooatari === "number") this.hud.ooatari = s.ooatari;
-    if (typeof s.reachCount === "number") this.hud.reachCount = s.reachCount;
-    if (typeof s.totalSpins === "number") this.hud.totalSpins = s.totalSpins;
+    if (typeof s.ooatari === "number") this.hud.ooatari = sameDay ? s.ooatari : 0;
+    if (typeof s.reachCount === "number") this.hud.reachCount = sameDay ? s.reachCount : 0;
+    if (typeof s.totalSpins === "number") this.hud.totalSpins = sameDay ? s.totalSpins : 0;
     if (typeof s.winChar === "number") this.winChar = s.winChar;
     this.controller.setState({
       mode: (s.mode as Mode) ?? "NORMAL",
