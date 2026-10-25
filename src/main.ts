@@ -90,18 +90,28 @@ game.onHud = (h: HudData) => {
   renderBoxes(h.held);
 };
 
-// ---- 구슬 박스 (1000=투명, 많으면 2열, 초과 시 빨강 3000 교환) ----
-// 박스 단계: 투명 1,000 → 빨강 3,000 → 녹색 10,000.
-type BoxTier = "clear" | "red" | "green";
+// ---- 구슬 박스 (1000=투명, 많으면 2열, 초과 시 상위 박스로 교환) ----
+// 박스 단계: 투명 1,000 → 빨강 3,000 → 녹색 10,000 → 금색 100,000.
+type BoxTier = "clear" | "red" | "green" | "gold";
 let lastBoxKey = "";
 const CLEAR_CAP = 20; // 투명(1000) 20개(=2만) 초과 시 빨강(3000)으로
 const RED_CAP = 20; // 빨강(3000) 20개(=6만) 초과 시 녹색(10000)으로
+const GOLD_UNIT = 100000; // 10만개 이상이면 금색(100000) 박스로 교환 — 박스 수 최소화
 function renderBoxes(held: number): void {
+  let golds = 0;
   let greens = 0;
   let reds = 0;
   let clears = 0;
   const n1000 = Math.floor(held / 1000);
-  if (n1000 <= CLEAR_CAP) {
+  if (held >= GOLD_UNIT) {
+    // 금색 → 녹색 → 빨강 → 투명 순으로 큰 박스부터 채워 박스 개수를 최소화.
+    golds = Math.floor(held / GOLD_UNIT);
+    let rem = held - golds * GOLD_UNIT;
+    greens = Math.floor(rem / 10000);
+    rem -= greens * 10000;
+    reds = Math.floor(rem / 3000);
+    clears = Math.floor((rem - reds * 3000) / 1000);
+  } else if (n1000 <= CLEAR_CAP) {
     clears = n1000;
   } else if (Math.floor(held / 3000) <= RED_CAP) {
     reds = Math.floor(held / 3000);
@@ -112,10 +122,11 @@ function renderBoxes(held: number): void {
     reds = Math.floor(rem / 3000);
     clears = Math.floor((rem - reds * 3000) / 1000);
   }
-  const key = `${greens}:${reds}:${clears}`;
+  const key = `${golds}:${greens}:${reds}:${clears}`;
   if (key === lastBoxKey) return;
   lastBoxKey = key;
   const items: BoxTier[] = [];
+  for (let i = 0; i < golds; i++) items.push("gold");
   for (let i = 0; i < greens; i++) items.push("green");
   for (let i = 0; i < reds; i++) items.push("red");
   for (let i = 0; i < clears; i++) items.push("clear");
@@ -126,8 +137,8 @@ function renderBoxes(held: number): void {
 function itemsHtml(arr: BoxTier[]): string {
   return arr
     .map((t) => {
-      const cls = t === "green" ? " green" : t === "red" ? " red" : "";
-      const label = t === "green" ? "10000" : t === "red" ? "3000" : "ブチョン";
+      const cls = t === "gold" ? " gold" : t === "green" ? " green" : t === "red" ? " red" : "";
+      const label = t === "gold" ? "100000" : t === "green" ? "10000" : t === "red" ? "3000" : "ブチョン";
       return `<div class="ballbox${cls}"><span class="bb-label">${label}</span></div>`;
     })
     .join("");

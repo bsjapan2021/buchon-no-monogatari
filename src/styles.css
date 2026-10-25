@@ -188,6 +188,21 @@ html, body {
   box-shadow: inset 0 0 6px rgba(190, 255, 205, 0.35), 0 1px 3px rgba(0, 0, 0, 0.45), 0 0 10px rgba(60, 230, 120, 0.6);
 }
 .ballbox.green .bb-label { color: #fff; background: rgba(10, 90, 40, 0.85); }
+/* 금색 박스 = 100000개 교환 (최상위 단계) — 반짝이는 금박 */
+.ballbox.gold {
+  border-color: rgba(255, 228, 130, 0.95);
+  background:
+    radial-gradient(circle at 3px 3px, rgba(255, 248, 210, 0.95) 1.6px, transparent 2.1px) 0 0 / 7px 7px,
+    linear-gradient(135deg, #fff1a8 0%, #ffcf3a 30%, #c8921a 55%, #ffe27a 78%, #b07a10 100%);
+  background-size: 7px 7px, 200% 200%;
+  box-shadow: inset 0 0 7px rgba(255, 250, 220, 0.6), 0 1px 3px rgba(0, 0, 0, 0.5), 0 0 12px rgba(255, 207, 58, 0.85);
+  animation: goldShine 2.4s ease-in-out infinite;
+}
+.ballbox.gold .bb-label { color: #ffe9a0; background: rgba(70, 40, 0, 0.88); }
+@keyframes goldShine {
+  0%, 100% { background-position: 0 0, 0% 50%; }
+  50% { background-position: 0 0, 100% 50%; }
+}
 
 @media (max-width: 760px) {
   body:not(.scaled) .scoreboard { gap: 2px; padding: 6px 6px; }
