@@ -35,6 +35,7 @@ export interface GameSnapshot {
   winChar: number;
   mode: Mode;
   jitanLeft: number;
+  kakuhenLeft?: number; // 확변 ST 잔여 회전
   rush: boolean;
   windowSpin: number;
   day?: string; // 저장 시점의 로컬 날짜(YYYY-MM-DD). 날짜가 바뀌면 금일 카운터 리셋.
@@ -276,6 +277,7 @@ export class Game {
       winChar: this.winChar,
       mode: cs.mode,
       jitanLeft: cs.jitanLeft,
+      kakuhenLeft: cs.kakuhenLeft,
       rush: cs.rush,
       windowSpin: cs.windowSpin,
       day: localDayStr(),
@@ -304,6 +306,7 @@ export class Game {
     this.controller.setState({
       mode: (s.mode as Mode) ?? "NORMAL",
       jitanLeft: s.jitanLeft ?? 0,
+      kakuhenLeft: s.kakuhenLeft,
       rush: s.rush ?? false,
       windowSpin: s.windowSpin ?? 0,
     });

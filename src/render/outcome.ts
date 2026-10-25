@@ -28,9 +28,13 @@ export interface Outcome {
 }
 
 const DENOM = 65536;
-// 당첨 중 오아다리(확변) 비중 60%. 통상/시단 당첨 6.5% → 오아다리 ≈ 3.9% (요청: 3.8~3.95%), 리치 ≈ 2.6%.
-const P_NORMAL = Math.round(DENOM * 0.065);
-const P_KAKUHEN = Math.round(DENOM * 0.5); // 確變(RUSH)은 높게 유지
+// 실제 빠칭코급 밸런스. 통상 大当たり 1/99, 확변(ST) 중 1/40.
+// 당첨 중 오아다리(확변) 비중 60%(HESO/DENCHU 배분). 전체 당첨률 ≈ 1.5%.
+const P_NORMAL = Math.round(DENOM / 99);
+const P_KAKUHEN = Math.round(DENOM / 40); // 確變(RUSH) ST 중 당첨 확률
+// 확변 ST 제한회전: 이 안에 당첨 못 하면 통상 복귀(무한루프 방지). 継続率 ≈ 92%.
+const KAKUHEN_WINDOW = 100;
+const JITAN_SPINS = 100; // 時短 회전수
 
 interface RoundDef {
   round: number;
@@ -53,7 +57,8 @@ const DENCHU: RoundDef[] = [
 export class OutcomeController {
   private mode: Mode = "NORMAL";
   private jitanLeft = 0;
-  private rush = false; // 時短200 루프 (2R확변 등으로 진입)
+  private kakuhenLeft = 0; // 확변 ST 잔여 회전
+  private rush = false; // RUSH 루프 (2R확변 등으로 진입)
   private windowSpin = 0;
   private rng: () => number;
 
@@ -72,12 +77,19 @@ export class OutcomeController {
   }
 
   // ---- 상태 저장/복원(재접속 시) ----
-  getState(): { mode: Mode; jitanLeft: number; rush: boolean; windowSpin: number } {
-    return { mode: this.mode, jitanLeft: this.jitanLeft, rush: this.rush, windowSpin: this.windowSpin };
+  getState(): { mode: Mode; jitanLeft: number; kakuhenLeft: number; rush: boolean; windowSpin: number } {
+    return {
+      mode: this.mode,
+      jitanLeft: this.jitanLeft,
+      kakuhenLeft: this.kakuhenLeft,
+      rush: this.rush,
+      windowSpin: this.windowSpin,
+    };
   }
-  setState(s: { mode: Mode; jitanLeft: number; rush: boolean; windowSpin: number }): void {
+  setState(s: { mode: Mode; jitanLeft: number; kakuhenLeft?: number; rush: boolean; windowSpin: number }): void {
     this.mode = s.mode;
     this.jitanLeft = s.jitanLeft;
+    this.kakuhenLeft = s.kakuhenLeft ?? (s.mode === "KAKUHEN" ? KAKUHEN_WINDOW : 0);
     this.rush = s.rush;
     this.windowSpin = s.windowSpin;
   }
@@ -95,6 +107,14 @@ export class OutcomeController {
       if (this.mode === "JITAN") {
         this.jitanLeft--;
         if (this.jitanLeft <= 0) {
+          this.mode = "NORMAL";
+          this.rush = false;
+          this.windowSpin = 0;
+        }
+      } else if (this.mode === "KAKUHEN") {
+        // 확변 ST 제한회전 소진 시 통상 복귀(무한루프 방지).
+        this.kakuhenLeft--;
+        if (this.kakuhenLeft <= 0) {
           this.mode = "NORMAL";
           this.rush = false;
           this.windowSpin = 0;
@@ -118,10 +138,12 @@ export class OutcomeController {
 
     if (kakuhen) {
       this.mode = "KAKUHEN";
+      this.kakuhenLeft = KAKUHEN_WINDOW;
       this.jitanLeft = 0;
     } else {
       this.mode = "JITAN";
-      this.jitanLeft = this.rush ? 200 : 100;
+      this.jitanLeft = JITAN_SPINS;
+      this.kakuhenLeft = 0;
     }
     this.windowSpin = 0;
 
