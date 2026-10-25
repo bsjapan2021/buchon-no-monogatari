@@ -52,6 +52,19 @@ export function localDayStr(d: Date = new Date()): string {
 
 type Phase = "idle" | "spinning" | "result" | "cooldown";
 
+// 릴 슬라이딩(정지 타이밍) 프로파일 — 매 스핀 다양한 길이/간격/서스펜스.
+type TimingProfile =
+  | "snappy" // 짧고 빠르게 탁탁
+  | "brisk" // 경쾌하게
+  | "normal" // 표준
+  | "relaxed" // 느긋하게
+  | "longdrag" // 길게 끌기
+  | "irregular" // 들쭉날쭉
+  | "accelGap" // 간격이 점점 짧아짐(조여옴)
+  | "decelGap" // 간격이 점점 길어짐(뜸 들이기)
+  | "burst" // 1·2행 거의 동시 → 마지막만 길게
+  | "teaseSlow"; // 전체가 느리고 서스펜스 최대
+
 const REACH_CUTINS = [1, 3, 7, 8, 9, 10, 11];
 const OMEN_CUTINS = [8, 9];
 
@@ -451,22 +464,64 @@ export class Game {
     return (Math.random() < 0.5 ? -1 : 1) * (0.16 + Math.random() * 0.18);
   }
 
+  // 정지 타이밍 파라미터 — base(첫 정지까지), g1/g2(행 간 슬라이딩 간격), susMul(서스펜스 배율).
+  private timingParams(p: TimingProfile): { base: number; g1: number; g2: number; susMul: number } {
+    const j = (): number => 0.85 + Math.random() * 0.3; // ±15% 지터(동일 스핀 방지)
+    switch (p) {
+      case "snappy":
+        return { base: 0.22 * j(), g1: 0.12 * j(), g2: 0.12 * j(), susMul: 0.5 };
+      case "brisk":
+        return { base: 0.3 * j(), g1: 0.16 * j(), g2: 0.16 * j(), susMul: 0.7 };
+      case "relaxed":
+        return { base: 0.6 * j(), g1: 0.34 * j(), g2: 0.38 * j(), susMul: 1.15 };
+      case "longdrag":
+        return { base: 0.9 * j(), g1: 0.45 * j(), g2: 0.5 * j(), susMul: 1.2 };
+      case "irregular":
+        return { base: (0.3 + Math.random() * 0.5), g1: (0.12 + Math.random() * 0.5), g2: (0.12 + Math.random() * 0.5), susMul: 1.0 };
+      case "accelGap": // 간격이 점점 짧아짐(조여옴)
+        return { base: 0.5 * j(), g1: 0.46 * j(), g2: 0.16 * j(), susMul: 0.9 };
+      case "decelGap": // 간격이 점점 길어짐(뜸 들이기)
+        return { base: 0.3 * j(), g1: 0.2 * j(), g2: 0.52 * j(), susMul: 1.15 };
+      case "burst": // 1·2행 거의 동시 → 마지막만 길게
+        return { base: 0.35 * j(), g1: 0.06 * j(), g2: 0.42 * j(), susMul: 1.05 };
+      case "teaseSlow": // 전체가 느리고 서스펜스 최대
+        return { base: 0.7 * j(), g1: 0.4 * j(), g2: 0.55 * j(), susMul: 1.6 };
+      case "normal":
+      default:
+        return { base: 0.4 * j(), g1: 0.24 * j(), g2: 0.26 * j(), susMul: 1.0 };
+    }
+  }
+
   private scheduleStops(out: Outcome): void {
-    // 1행 → 2행 → 3행 순차 정지 (위에서 아래로 차례대로 슬라이딩하며 멈춤).
-    const order: [number, number, number] = [0, 1, 2];
-    const base = this.dur(0.4);
-    const gap = (): number => this.dur(0.22 + Math.random() * 0.12);
+    const pick = <T>(a: readonly T[]): T => a[(Math.random() * a.length) | 0]!;
+    // 상황별 타이밍 프로파일 풀 — 당첨일수록 느리고 뜸 들이는 쪽으로 편향.
+    let profile: TimingProfile;
+    if (out.kind === "ooatari") profile = pick(["teaseSlow", "longdrag", "relaxed", "decelGap", "burst"] as const);
+    else if (out.kind === "reach") profile = pick(["relaxed", "normal", "decelGap", "teaseSlow", "burst"] as const);
+    else if (out.kind === "reachlose") profile = pick(["normal", "relaxed", "brisk", "irregular", "accelGap", "burst"] as const);
+    else profile = pick(["snappy", "brisk", "normal", "irregular", "accelGap"] as const);
+
+    // 정지 순서도 다양하게 — 당첨은 가끔 중앙 행이 마지막(중앙 서스펜스)으로.
+    const order: readonly [number, number, number] =
+      out.kind === "ooatari" || out.kind === "reach"
+        ? pick([[0, 1, 2], [2, 1, 0], [0, 2, 1], [2, 0, 1]] as const)
+        : pick([[0, 1, 2], [2, 1, 0]] as const);
+
+    const pr = this.timingParams(profile);
     const delays: [number, number, number] = [0, 0, 0];
-    let t = base;
+    let t = this.dur(pr.base);
+    const firstT = t;
     delays[order[0]] = t;
-    t += gap();
+    t += this.dur(pr.g1);
     delays[order[1]] = t;
-    t += gap();
-    if (out.kind !== "none") t += this.dur(out.kind === "ooatari" ? 3.4 : 1.0); // 서스펜스(마지막 3행 전, 오아다리 징조 길게)
+    t += this.dur(pr.g2);
+    // 서스펜스(마지막 행 전, 오아다리 징조 길게) — 프로파일 배율 적용.
+    if (out.kind !== "none") t += this.dur((out.kind === "ooatari" ? 3.4 : 1.0) * pr.susMul);
     delays[order[2]] = t;
+
     this.stopDelay = delays;
     this.lastRow = order[2];
-    this.firstStopT = base;
+    this.firstStopT = firstT;
     this.issued = [false, false, false];
     this.pickStopPatterns(out);
   }
