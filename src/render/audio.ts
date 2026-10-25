@@ -16,6 +16,10 @@ export class AudioManager {
   private reelLfo: OscillatorNode | null = null;
   private reelSpinning = false;
   private reelArpStep = 0;
+  // 당첨 구슬이 플라스틱 박스에 쏟아지는 루프 사운드.
+  private pourGain: GainNode | null = null;
+  private pourSrc: AudioBufferSourceNode | null = null;
+  private pouring = false;
   private muted = false;
   private started = false;
   private mode: Mode = "NORMAL";
@@ -242,6 +246,101 @@ export class AudioManager {
     this.fireworks();
     this.cheer();
     this.speak("おおあたり！！", "ja-JP"); // 오아다리 → 일본어 음성
+  }
+
+  // ---- 당첨 구슬이 플라스틱 박스에 떨어져 쌓이는 대음량 사운드 ----
+  /** 구슬이 플라스틱 박스에 쏟아지는 래틀 루프 시작(큰 볼륨). */
+  startBallPour(): void {
+    if (!this.ctx || !this.master || this.pouring) return;
+    this.pouring = true;
+    const bus = this.ctx.createGain();
+    bus.gain.value = 1.5; // 대음량
+    bus.connect(this.master);
+    this.pourGain = bus;
+    // 플라스틱 특유의 중고역 래틀 베드(밴드패스 노이즈 루프).
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer(1.5);
+    src.loop = true;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 2600;
+    bp.Q.value = 0.8;
+    const ng = this.ctx.createGain();
+    ng.gain.value = 0.55;
+    src.connect(bp);
+    bp.connect(ng);
+    ng.connect(bus);
+    src.start();
+    this.pourSrc = src;
+  }
+
+  /** 구슬이 플라스틱에 '다다닥' 부딪혀 쌓이는 클랙. count 많을수록 겹쳐 크게. */
+  ballDrop(count = 1): void {
+    const bus = this.pourGain ?? this.master;
+    if (!this.ctx || !bus) return;
+    const n = Math.min(6, Math.max(1, count));
+    for (let i = 0; i < n; i++) this.plasticTick(i * 0.012 + Math.random() * 0.01, bus);
+  }
+
+  // 플라스틱 타격 — 짧은 하이패스 노이즈 클릭 + 공명 핑.
+  private plasticTick(delay: number, dest: AudioNode): void {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime + delay;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer(0.05);
+    const hp = this.ctx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 1800;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.65, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+    src.connect(hp);
+    hp.connect(g);
+    g.connect(dest);
+    src.start(t);
+    src.stop(t + 0.06);
+    const f = 1700 + Math.random() * 1500;
+    const o = this.ctx.createOscillator();
+    o.type = "triangle";
+    o.frequency.value = f;
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(0.0001, t);
+    og.gain.linearRampToValueAtTime(0.32, t + 0.004);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    o.connect(og);
+    og.connect(dest);
+    o.start(t);
+    o.stop(t + 0.09);
+  }
+
+  /** 구슬 쏟아짐 루프 종료(짧은 페이드아웃). */
+  stopBallPour(): void {
+    if (!this.pouring) return;
+    this.pouring = false;
+    const ctx = this.ctx;
+    const bus = this.pourGain;
+    const src = this.pourSrc;
+    this.pourGain = null;
+    this.pourSrc = null;
+    if (!ctx || !bus) return;
+    const t = ctx.currentTime;
+    bus.gain.cancelScheduledValues(t);
+    bus.gain.setValueAtTime(Math.max(0.0001, bus.gain.value), t);
+    bus.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    if (src) {
+      try {
+        src.stop(t + 0.35);
+      } catch {
+        /* 이미 정지됨 */
+      }
+    }
+    window.setTimeout(() => {
+      try {
+        bus.disconnect();
+      } catch {
+        /* 무시 */
+      }
+    }, 450);
   }
 
   /** 리치 예감 — 번개(천둥) + 전기 감전음 + 순간 볼륨 부스트(깜짝!). */

@@ -1,6 +1,7 @@
 // 게임 오케스트레이터 — 파친코 물리(구슬) + 결과 컨트롤러(ST식 모드) + 릴 연출.
-import { Reel } from "./reel.js";
+import { Reel, type SpinPattern } from "./reel.js";
 import { Effects } from "./effects.js";
+import { PayoutBox, type Rect } from "./payout.js";
 import { Stampede } from "./boars.js";
 import { Nuke } from "./nuke.js";
 import { drawBackground } from "./background.js";
@@ -160,6 +161,8 @@ export class Game {
   ];
   private offsets: [number, number, number] = [0.2, -0.2, 0.2];
   private stopDelay: [number, number, number] = [0.5, 0.9, 1.3];
+  private spinPat: SpinPattern = "normal"; // 이번 스핀의 회전 패턴
+  private stopPat: [SpinPattern, SpinPattern, SpinPattern] = ["normal", "normal", "normal"]; // 행별 정지 패턴
   private issued: [boolean, boolean, boolean] = [true, true, true];
   private landed: [boolean, boolean, boolean] = [true, true, true];
   private firstStopT = 0.45;
@@ -176,6 +179,13 @@ export class Game {
   private omenSwitched = false;
   private omenBig = false; // 오아다리 징조 — 8·9 큰 그림
   private theme: WinTheme | null = null; // 이번 리치/오아다리 테마
+
+  // 당첨 구슬 적립 연출(박스에 쌓임) + 오아다리 영상 반복.
+  private payout = new PayoutBox();
+  private payoutActive = false;
+  private payoutBase = 0; // 적립 시작 시점의 보유 구슬
+  private payoutAmount = 0; // 이번 당첨 지급 구슬
+  private payoutIsOoatari = false; // 오아다리 영상 루프 대상 여부
 
   // 프리미엄 영상 (사용자 제공).
   private videos: Record<string, HTMLVideoElement> = {};
@@ -218,16 +228,34 @@ export class Game {
     window.addEventListener("resize", () => this.resize());
   }
 
-  /** 프리미엄 영상 재생 (이미 같은 영상 재생 중이면 유지). */
-  private playVideo(key: string): void {
+  /** 프리미엄 영상 재생 (이미 같은 영상 재생 중이면 유지). loop=구슬 적립 끝날 때까지 반복. */
+  private playVideo(key: string, loop = false): void {
     const vd = this.videos[key];
     if (!vd) return;
+    vd.loop = loop;
     if (this.activeVideo === vd && !vd.ended) return;
     this.activeVideo = vd;
     vd.currentTime = 0;
     vd.muted = false;
     vd.volume = 1;
     vd.play().catch(() => {}); // iOS는 unlockVideos()로 사전 해제했으므로 음소거하지 않음
+  }
+
+  /** 당첨 구슬 박스(받침) 위치 — 하단 중앙. */
+  private payoutBoxRect(): Rect {
+    const bw = this.w * 0.4;
+    const bh = this.h * 0.42;
+    return { x: (this.w - bw) / 2, y: this.h - bh - this.h * 0.03, w: bw, h: bh };
+  }
+
+  /** 당첨 구슬이 박스에 쌓이는 연출 시작. ooatari=영상 반복 + 큰 적립. */
+  private startPayout(amount: number, ooatari: boolean): void {
+    this.payoutActive = true;
+    this.payoutBase = this.held;
+    this.payoutAmount = amount;
+    this.payoutIsOoatari = ooatari;
+    this.payout.start(amount, ooatari, this.payoutBoxRect());
+    this.audio.startBallPour();
   }
 
   setSpinSpeed(v: number): void {
@@ -381,8 +409,12 @@ export class Game {
     this.scheduleStops(out); // lastRow 먼저 결정
     this.buildDisplay(out);
 
+    // 회전 패턴 — 전동 서포트(확변/RUSH)는 초고속 블러, 통상은 보통/가속/맥동 중 랜덤.
+    this.spinPat = this.controller.isDenpo()
+      ? "hyper"
+      : (["normal", "accel", "pulse"] as const)[(Math.random() * 3) | 0]!;
     const speed = this.stepX() * 11 * this.spinSpeedMul;
-    for (const r of this.reels) r.startSpin(speed);
+    for (const r of this.reels) r.startSpin(speed, this.spinPat);
     this.landed = [false, false, false];
     this.audio.startReelSpin();
 
@@ -436,6 +468,28 @@ export class Game {
     this.lastRow = order[2];
     this.firstStopT = base;
     this.issued = [false, false, false];
+    this.pickStopPatterns(out);
+  }
+
+  /** 상황·이벤트에 맞는 행별 정지 패턴 — 마지막 행에 긴장감 패턴을 배치. */
+  private pickStopPatterns(out: Outcome): void {
+    const pick = <T>(a: readonly T[]): T => a[(Math.random() * a.length) | 0]!;
+    const MILD = ["normal", "fast", "accel", "bounce"] as const;
+    const p: [SpinPattern, SpinPattern, SpinPattern] = [pick(MILD), pick(MILD), pick(MILD)];
+    const last = this.lastRow;
+    if (out.kind === "ooatari") {
+      p[last] = pick(["suspense", "slip", "stutter"] as const); // 확정 직전 초긴장
+      // 마지막 직전 행도 살짝 긴장(스베리/탄성)으로 분위기 고조.
+      const prev = (last + 2) % 3;
+      p[prev] = pick(["slip", "elastic"] as const);
+    } else if (out.kind === "reach") {
+      p[last] = pick(["slip", "elastic", "suspense"] as const);
+    } else if (out.kind === "reachlose") {
+      p[last] = pick(["slip", "rewind", "stutter"] as const); // 될 듯 말 듯 → 빗나감
+    } else {
+      p[last] = pick(["normal", "fast"] as const);
+    }
+    this.stopPat = p;
   }
 
   private dur(base: number): number {
@@ -449,6 +503,34 @@ export class Game {
     this.nuke.update(dt);
     for (const r of this.reels) r.update(dt);
     if (this.winGlow > 0) this.winGlow = Math.max(0, this.winGlow - dt * 0.4);
+
+    // 당첨 구슬 적립 — 박스에 떨어져 쌓이며 보유 구슬이 실시간으로 차오른다.
+    if (this.payoutActive) {
+      const newly = this.payout.update(dt, this.payoutBoxRect());
+      if (newly > 0) {
+        this.audio.ballDrop(newly); // 플라스틱 '다다닥'
+        const target = this.payoutBase + Math.round(this.payoutAmount * this.payout.progress());
+        if (target !== this.held) {
+          this.held = target;
+          this.hud.held = this.held;
+          this.emit();
+        }
+      }
+      if (this.payout.done) {
+        this.held = this.payoutBase + this.payoutAmount; // 최종치 보정
+        this.hud.held = this.held;
+        this.payoutActive = false;
+        this.audio.stopBallPour();
+        // 구슬 다 받으면 오아다리 영상 반복 종료.
+        if (this.payoutIsOoatari && this.activeVideo) {
+          this.activeVideo.loop = false;
+          this.activeVideo.pause();
+          this.activeVideo = null;
+          this.stampede.stop();
+        }
+        this.emit();
+      }
+    }
 
     if (this.cutinActive) {
       this.cutinTimer += dt;
@@ -505,14 +587,15 @@ export class Game {
         for (let r = 0; r < 3; r++) {
           if (!this.issued[r] && this.pt >= this.stopDelay[r]) {
             const extra = 5 + ((Math.random() * 6) | 0);
-            const d = this.dur(0.4 + Math.random() * 0.35);
-            this.reels[r]!.requestStop(
-              this.targetsFor(r),
-              this.stepX(),
-              extra,
-              d,
-              this.offsets[r],
-            );
+            const pat = this.stopPat[r]!;
+            // 패턴별 정지 시간 — 서스펜스/스베리는 길게, 빠름은 짧게.
+            let d = this.dur(0.4 + Math.random() * 0.35);
+            if (pat === "suspense") d = this.dur(0.95 + Math.random() * 0.5);
+            else if (pat === "slip") d = this.dur(0.7 + Math.random() * 0.3);
+            else if (pat === "stutter") d = this.dur(0.7 + Math.random() * 0.2);
+            else if (pat === "elastic" || pat === "bounce") d = this.dur(0.6 + Math.random() * 0.25);
+            else if (pat === "fast") d = this.dur(0.28 + Math.random() * 0.12);
+            this.reels[r]!.requestStop(this.targetsFor(r), this.stepX(), extra, d, this.offsets[r], pat);
             this.issued[r] = true;
           }
         }
@@ -537,7 +620,8 @@ export class Game {
         this.pt += dt;
         // 리치/오아다리는 충분히 볼 수 있게 대기시간 증가.
         const hold = this.outcome?.kind === "ooatari" ? 4.2 : this.outcome?.kind === "reach" ? 2.6 : 0.25;
-        if (this.pt > this.dur(hold)) {
+        // 구슬 적립(박스 쌓임)이 끝날 때까지 결과 화면·영상 반복 유지.
+        if (this.pt > this.dur(hold) && !this.payoutActive) {
           this.phase = "cooldown";
           this.pt = 0;
         }
@@ -632,7 +716,7 @@ export class Game {
       // 오아다리 → 11.mov + 테마별 프리미엄 연출(색·불꽃·분할·충격파·진동).
       this.reachStreak = 0;
       this.ooatariStreak++;
-      this.playVideo("11");
+      this.playVideo("11", true); // 구슬 다 받을 때까지 오아다리 영상 반복
       this.audio.ooatari();
       this.stampede.start(this.w, this.h); // 멧돼지 떼 질주 — 영상 끝날 때까지 계속
       this.boarSoundT = 0; // 발굽 사운드 즉시 재생(이후 루프)
@@ -655,7 +739,7 @@ export class Game {
       this.winGlow = 1;
       this.winChar = out.number;
       const payout = out.payout;
-      this.held += payout;
+      this.startPayout(payout, true); // 구슬이 박스에 쌓이는 연출(영상 반복)
       this.hud.ooatari++;
       this.fx.showCutin(`${t.titleJa} 大当たり!!`, `${t.titleKo} · ${out.round}R 確変 +${payout}`, t.color);
       this.hud.message = `${t.titleKo} 大当たり! ${out.round}R確変 (+${payout}) ${out.continued ? "[연장]" : ""}`;
@@ -677,7 +761,7 @@ export class Game {
       this.winGlow = 0.7;
       this.winChar = out.number;
       const payout = out.payout;
-      this.held += payout;
+      this.startPayout(payout, false); // 구슬이 박스에 쌓이는 연출
       this.hud.reachCount++;
       this.fx.showCutin(`${t.titleJa} リーチ!`, `${t.titleKo} · ${out.round}R 通常 +${payout}`, t.color);
       this.hud.message = `${t.titleKo} 리치! ${out.round}R通常 (+${payout})`;
@@ -817,6 +901,7 @@ export class Game {
     ctx.restore(); // shake
 
     this.drawVideo(ctx);
+    if (this.payoutActive) this.payout.draw(ctx, this.payoutBoxRect()); // 구슬 쌓임 박스(영상 위)
     this.fx.drawBeams(ctx);
     this.stampede.draw(ctx); // 오아다리 멧돼지 떼(영상 위로 질주)
     if (!this.activeVideo) {
