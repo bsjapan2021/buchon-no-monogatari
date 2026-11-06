@@ -196,9 +196,10 @@ export class Game {
   // 당첨 구슬 적립 연출(박스에 쌓임) + 오아다리 영상 반복.
   private payout = new PayoutBox();
   private payoutActive = false;
-  private payoutBase = 0; // 적립 시작 시점의 보유 구슬
   private payoutAmount = 0; // 이번 당첨 지급 구슬
+  private payoutCredited = 0; // 이번 당첨 중 이미 보유 구슬에 더해진 수(지급 중 발사로 줄어든 구슬은 그대로 차감 유지)
   private payoutIsOoatari = false; // 오아다리 영상 루프 대상 여부
+  private payoutFast = false; // 지급 중 S(스킵)를 눌렀을 때만 빨리감기
 
   // 프리미엄 영상 (사용자 제공).
   private videos: Record<string, HTMLVideoElement> = {};
@@ -263,11 +264,13 @@ export class Game {
 
   /** 당첨 구슬이 박스에 쌓이는 연출 시작. ooatari=영상 반복 + 큰 적립. */
   private startPayout(amount: number, ooatari: boolean): void {
+    if (this.payoutActive) this.held += this.payoutAmount - this.payoutCredited; // 이전 지급 잔량 정산
     this.payoutActive = true;
-    this.payoutBase = this.held;
     this.payoutAmount = amount;
+    this.payoutCredited = 0;
+    this.payoutFast = false;
     this.payoutIsOoatari = ooatari;
-    this.payout.start(amount, ooatari, this.payoutBoxRect());
+    this.payout.start(amount, this.payoutBoxRect());
     this.audio.startBallPour();
   }
 
@@ -293,6 +296,7 @@ export class Game {
 
   requestSkip(): void {
     this.skip = true;
+    if (this.payoutActive) this.payoutFast = true;
   }
 
   toggleMute(): boolean {
@@ -309,7 +313,8 @@ export class Game {
   snapshot(): GameSnapshot {
     const cs = this.controller.getState();
     return {
-      held: this.held,
+      // 지급 도중 저장·이탈해도 남은 당첨 구슬을 잃지 않도록 미지급분을 포함해 저장.
+      held: this.held + (this.payoutActive ? this.payoutAmount - this.payoutCredited : 0),
       launched: this.launched,
       pending: this.pendingSpins,
       ooatari: this.hud.ooatari,
@@ -561,18 +566,21 @@ export class Game {
 
     // 당첨 구슬 적립 — 박스에 떨어져 쌓이며 보유 구슬이 실시간으로 차오른다.
     if (this.payoutActive) {
-      const newly = this.payout.update(dt, this.payoutBoxRect());
+      // 지급 중 S(스킵)를 누르면 지급 연출을 빨리감기.
+      const newly = this.payout.update(this.payoutFast ? dt * 15 : dt, this.payoutBoxRect());
       if (newly > 0) {
         this.audio.ballDrop(newly); // 플라스틱 '다다닥'
-        const target = this.payoutBase + Math.round(this.payoutAmount * this.payout.progress());
-        if (target !== this.held) {
-          this.held = target;
+        const due = Math.round(this.payoutAmount * this.payout.progress());
+        if (due > this.payoutCredited) {
+          this.held += due - this.payoutCredited;
+          this.payoutCredited = due;
           this.hud.held = this.held;
           this.emit();
         }
       }
       if (this.payout.done) {
-        this.held = this.payoutBase + this.payoutAmount; // 최종치 보정
+        this.held += this.payoutAmount - this.payoutCredited; // 잔량 정산
+        this.payoutCredited = this.payoutAmount;
         this.hud.held = this.held;
         this.payoutActive = false;
         this.audio.stopBallPour();

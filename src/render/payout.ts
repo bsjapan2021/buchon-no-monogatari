@@ -18,6 +18,18 @@ interface Ball {
   hue: number;
 }
 
+// 지급 속도 — 1,000구(한 박스)를 약 3분에 걸쳐 받는다. 금액에 비례(60구 ≈ 11초, 1,500구 ≈ 4분 30초).
+export const SECONDS_PER_1000_BALLS = 180;
+const MIN_DURATION = 3; // 소액 당첨도 최소 이 시간은 쌓이는 연출을 보여준다
+const BALL_R_RATIO = 0.015; // 박스 폭 대비 구슬 반지름 — 1,000구 박스가 시각적으로 가득 차도록 작게
+const FALL_TIME = 0.7; // 박스 상단→바닥 낙하 시간(초) — 마지막 구슬이 이 시간 뒤 안착
+const ROLL_REACH = 3; // 안착 시 좌우로 굴러갈 수 있는 최대 칸 수
+
+/** 금액(구슬)에 대한 지급 연출 시간(초). */
+export function payoutDuration(amount: number): number {
+  return Math.max(MIN_DURATION, (amount / 1000) * SECONDS_PER_1000_BALLS);
+}
+
 export class PayoutBox {
   private balls: Ball[] = [];
   private cols: number[] = []; // 컬럼별 적층 개수
@@ -32,23 +44,26 @@ export class PayoutBox {
   active = false;
   done = true;
 
-  /** 당첨 금액(구슬)만큼 적립 연출 시작. big=오아다리(더 크고 길게). */
-  start(amount: number, big: boolean, rect: Rect): void {
+  /** 당첨 금액(구슬)만큼 적립 연출 시작. 1,000구 ≈ 3분 속도로 천천히 쏟아진다. */
+  start(amount: number, rect: Rect): void {
     this.active = true;
     this.done = false;
-    // 시각 구슬 수: 금액에 비례하되 24~170개로 캡(성능/가독). 1구당 환산은 game 쪽에서 progress로 처리.
-    this.total = Math.max(24, Math.min(170, Math.round(amount / (big ? 9 : 11))));
     this.spawned = 0;
     this.settledCount = 0;
     this.spawnAcc = 0;
     this.balls = [];
-    this.ballR = Math.max(5, rect.w * 0.02);
+    this.ballR = Math.max(4, rect.w * BALL_R_RATIO);
     const C = Math.max(8, Math.floor(rect.w / (this.ballR * 2.05)));
     this.cols = new Array(C).fill(0);
     this.colW = rect.w / C;
-    // 다 차오르기까지 목표 시간 — 금액(구슬 수)에 비례하되 상한.
-    const duration = Math.min(big ? 6 : 3.5, (big ? 2.5 : 1.8) + this.total * 0.02);
-    this.spawnRate = this.total / (duration * 0.78);
+    // 박스 수용량(상단 BONUS 표기 영역 제외) — 1,000구에 박스 한 개가 가득 차도록 시각 구슬 수를 정한다.
+    const dia = this.ballR * 2 * 0.86;
+    const rows = Math.max(4, Math.floor((rect.h * 0.84) / dia));
+    const capacity = C * rows;
+    this.total = Math.max(12, Math.min(capacity, Math.round((capacity * amount) / 1000)));
+    // 마지막 구슬이 지급 시간 끝에 안착하도록 스폰 간격을 고르게 분배.
+    const duration = payoutDuration(amount);
+    this.spawnRate = this.total / Math.max(0.5, duration - FALL_TIME);
   }
 
   /** @returns 이번 프레임에 새로 바닥/파일에 안착한 구슬 수(사운드 트리거용). */
@@ -56,7 +71,7 @@ export class PayoutBox {
     if (!this.active) return 0;
     // 레이아웃이 바뀌면 컬럼 폭만 갱신.
     this.colW = rect.w / this.cols.length;
-    this.ballR = Math.max(5, rect.w * 0.02);
+    this.ballR = Math.max(4, rect.w * BALL_R_RATIO);
 
     // 스폰(위에서 쏟아짐).
     this.spawnAcc += dt * this.spawnRate;
@@ -64,7 +79,7 @@ export class PayoutBox {
       this.spawnAcc -= 1;
       this.spawned++;
       this.balls.push({
-        x: rect.x + rect.w * (0.28 + Math.random() * 0.44),
+        x: rect.x + rect.w * (0.08 + Math.random() * 0.84), // 박스 폭 전체로 쏟아져 고르게 쌓이게
         y: rect.y - this.ballR - Math.random() * rect.h * 0.15,
         vx: (Math.random() - 0.5) * rect.w * 0.25,
         vy: 0,
@@ -93,11 +108,13 @@ export class PayoutBox {
         b.vx = -Math.abs(b.vx) * 0.45;
       }
       // 안착 판정 — 해당 컬럼의 현재 파일 높이 위에 얹힌다.
-      const col = Math.max(0, Math.min(this.cols.length - 1, Math.floor((b.x - rect.x) / this.colW)));
+      let col = Math.max(0, Math.min(this.cols.length - 1, Math.floor((b.x - rect.x) / this.colW)));
       const dia = b.r * 2 * 0.86;
       const restY = floorBase - (this.cols[col]! + 0.5) * dia - 2;
       if (b.y >= restY) {
-        b.y = restY;
+        // 구르기 — 옆 칸이 더 낮으면 굴러 내려가 박스 전체가 고르게 차오른다(가운데만 탑처럼 솟지 않게).
+        col = this.rollDown(col);
+        b.y = floorBase - (this.cols[col]! + 0.5) * dia - 2;
         b.x = rect.x + (col + 0.5) * this.colW + (Math.random() - 0.5) * this.colW * 0.3;
         b.settled = true;
         this.cols[col]!++;
@@ -111,6 +128,18 @@ export class PayoutBox {
       this.active = false;
     }
     return newly;
+  }
+
+  /** 굴러간 최종 칸 — 가까운 칸(±ROLL_REACH) 중 가장 낮은 곳으로 굴러 박스가 고르게 차오른다. */
+  private rollDown(start: number): number {
+    let best = start;
+    const dir = Math.random() < 0.5 ? -1 : 1; // 동률일 때 좌우 편향 없이
+    for (let d = 1; d <= ROLL_REACH; d++) {
+      for (const c of [start + d * dir, start - d * dir]) {
+        if (c >= 0 && c < this.cols.length && this.cols[c]! < this.cols[best]!) best = c;
+      }
+    }
+    return best;
   }
 
   /** 안착 진행도 0..1 (game 에서 보유 구슬 적립 환산용). */
@@ -173,20 +202,39 @@ export class PayoutBox {
     ctx.restore();
   }
 
+  // 구슬 스프라이트 캐시 — 박스에 수백 개가 쌓여도 매 프레임 그라디언트를 새로 만들지 않도록.
+  private sprites = new Map<string, HTMLCanvasElement>();
+
   private drawBall(ctx: CanvasRenderingContext2D, b: Ball): void {
-    const grad = ctx.createRadialGradient(b.x - b.r * 0.35, b.y - b.r * 0.4, b.r * 0.1, b.x, b.y, b.r);
-    grad.addColorStop(0, `hsl(${b.hue},95%,86%)`);
-    grad.addColorStop(0.5, `hsl(${b.hue},90%,62%)`);
-    grad.addColorStop(1, `hsl(${b.hue},80%,34%)`);
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-    ctx.fill();
-    // 하이라이트 점.
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.beginPath();
-    ctx.arc(b.x - b.r * 0.33, b.y - b.r * 0.38, b.r * 0.28, 0, Math.PI * 2);
-    ctx.fill();
+    const scale = ctx.getTransform().a || 1; // devicePixelRatio 반영(선명도)
+    const hueBucket = Math.round(b.hue / 5) * 5;
+    const px = Math.max(2, Math.round(b.r * scale));
+    const key = `${px}:${hueBucket}`;
+    let sp = this.sprites.get(key);
+    if (!sp) {
+      sp = document.createElement("canvas");
+      sp.width = sp.height = px * 2 + 2;
+      const g = sp.getContext("2d");
+      if (g) {
+        const c = px + 1;
+        const grad = g.createRadialGradient(c - px * 0.35, c - px * 0.4, px * 0.1, c, c, px);
+        grad.addColorStop(0, `hsl(${hueBucket},95%,86%)`);
+        grad.addColorStop(0.5, `hsl(${hueBucket},90%,62%)`);
+        grad.addColorStop(1, `hsl(${hueBucket},80%,34%)`);
+        g.fillStyle = grad;
+        g.beginPath();
+        g.arc(c, c, px, 0, Math.PI * 2);
+        g.fill();
+        // 하이라이트 점.
+        g.fillStyle = "rgba(255,255,255,0.85)";
+        g.beginPath();
+        g.arc(c - px * 0.33, c - px * 0.38, px * 0.28, 0, Math.PI * 2);
+        g.fill();
+      }
+      this.sprites.set(key, sp);
+    }
+    const size = (px * 2 + 2) / scale;
+    ctx.drawImage(sp, b.x - size / 2, b.y - size / 2, size, size);
   }
 }
 
