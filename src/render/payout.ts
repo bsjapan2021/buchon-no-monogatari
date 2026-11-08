@@ -1,5 +1,6 @@
-// 당첨(오아다리/리치) 시 구슬이 투명 플라스틱 박스(받침)에 떨어져 실시간으로 쌓이는 연출.
-// 중력 낙하 + 벽 반동 + 컬럼별 파일(pile) 적층으로 리얼하게 차오른다.
+// 당첨 보너스 박스 — 보너스 남은 시간·입상 수·지급 합계를 보여 주고,
+// 홀 입상이 생길 때마다 구슬 한 무더기가 투명 박스에 떨어져 쌓인다(연출 전용, 실제 지급은 game 쪽).
+// 중력 낙하 + 벽 반동 + 컬럼별 파일(pile) 적층.
 
 export interface Rect {
   x: number;
@@ -18,16 +19,21 @@ interface Ball {
   hue: number;
 }
 
-// 지급 속도 — 1,000구(한 박스)를 약 3분에 걸쳐 받는다. 금액에 비례(60구 ≈ 11초, 1,500구 ≈ 4분 30초).
-export const SECONDS_PER_1000_BALLS = 180;
-const MIN_DURATION = 3; // 소액 당첨도 최소 이 시간은 쌓이는 연출을 보여준다
-const BALL_R_RATIO = 0.015; // 박스 폭 대비 구슬 반지름 — 1,000구 박스가 시각적으로 가득 차도록 작게
-const FALL_TIME = 0.7; // 박스 상단→바닥 낙하 시간(초) — 마지막 구슬이 이 시간 뒤 안착
+const ENTRIES_PER_BOX = 10; // 시각 연출: 입상 10개면 박스가 가득 차고 비워진다(실제 지급은 입상 1개 = 1,000개)
+const BURST_TIME = 0.35; // 입상 1개분 구슬이 쏟아지는 시간(초)
 const ROLL_REACH = 3; // 안착 시 좌우로 굴러갈 수 있는 최대 칸 수
 
-/** 금액(구슬)에 대한 지급 연출 시간(초). */
-export function payoutDuration(amount: number): number {
-  return Math.max(MIN_DURATION, (amount / 1000) * SECONDS_PER_1000_BALLS);
+/** 보너스 박스에 표시할 진행 정보. */
+export interface BonusInfo {
+  left: number; // 남은 시간(초)
+  entries: number; // 입상 수
+  awarded: number; // 지급 합계
+}
+
+/** 박스 안 배치 — 상단 타이머·하단 집계 글자 크기와 구슬이 쌓이는 구간. */
+function boxMetrics(r: Rect): { fs: number; top: number; floor: number } {
+  const fs = Math.max(10, Math.min(24, r.h * 0.13, r.w * 0.09));
+  return { fs, top: r.y + fs * 2.4, floor: r.y + r.h - fs * 1.45 };
 }
 
 export class PayoutBox {
@@ -35,52 +41,64 @@ export class PayoutBox {
   private cols: number[] = []; // 컬럼별 적층 개수
   private colW = 1;
   private ballR = 6;
-  private total = 0; // 이번 당첨의 시각적 구슬 총수
-  private spawned = 0;
+  private capacity = 1; // 박스 한 개에 들어가는 시각 구슬 수
+  private perEntry = 1; // 입상 1개당 쏟아지는 시각 구슬 수
+  private queued = 0; // 아직 쏟아지지 않은 시각 구슬
   private settledCount = 0;
   private spawnAcc = 0;
-  private spawnRate = 0;
+  private flash = 0; // 박스가 가득 차서 비워질 때 반짝임
+  boxes = 0; // 가득 채운 박스 수(연출)
 
-  active = false;
-  done = true;
-
-  /** 당첨 금액(구슬)만큼 적립 연출 시작. 1,000구 ≈ 3분 속도로 천천히 쏟아진다. */
-  start(amount: number, rect: Rect): void {
-    this.active = true;
-    this.done = false;
-    this.spawned = 0;
+  /** 보너스 시작 — 빈 박스로 초기화. */
+  start(rect: Rect): void {
+    this.balls = [];
+    this.queued = 0;
     this.settledCount = 0;
     this.spawnAcc = 0;
-    this.balls = [];
-    this.ballR = Math.max(4, rect.w * BALL_R_RATIO);
-    const C = Math.max(8, Math.floor(rect.w / (this.ballR * 2.05)));
-    this.cols = new Array(C).fill(0);
+    this.flash = 0;
+    this.boxes = 0;
+    this.layout(rect);
+    this.cols = new Array(this.cols.length).fill(0);
+  }
+
+  private layout(rect: Rect): void {
+    const m = boxMetrics(rect);
+    this.ballR = Math.max(3, Math.min(rect.w * 0.022, rect.h * 0.035));
+    const C = Math.max(6, Math.floor(rect.w / (this.ballR * 2.05)));
+    if (this.cols.length !== C) this.cols = new Array(C).fill(0);
     this.colW = rect.w / C;
-    // 박스 수용량(상단 BONUS 표기 영역 제외) — 1,000구에 박스 한 개가 가득 차도록 시각 구슬 수를 정한다.
+    // 상단 타이머·하단 집계 표기 영역을 비워 둔 수용량.
     const dia = this.ballR * 2 * 0.86;
-    const rows = Math.max(4, Math.floor((rect.h * 0.84) / dia));
-    const capacity = C * rows;
-    this.total = Math.max(12, Math.min(capacity, Math.round((capacity * amount) / 1000)));
-    // 마지막 구슬이 지급 시간 끝에 안착하도록 스폰 간격을 고르게 분배.
-    const duration = payoutDuration(amount);
-    this.spawnRate = this.total / Math.max(0.5, duration - FALL_TIME);
+    const rows = Math.max(3, Math.floor((m.floor - m.top) / dia));
+    this.capacity = C * rows;
+    this.perEntry = Math.max(4, Math.round(this.capacity / ENTRIES_PER_BOX));
+  }
+
+  /** 홀 입상 n개 — 입상마다 구슬 한 무더기가 쏟아진다(연출 전용, 실제 지급은 game 쪽). */
+  add(n: number): void {
+    // 입상이 몰려도 화면이 넘치지 않도록 대기열은 박스 한 개 분량까지만.
+    this.queued = Math.min(this.capacity, this.queued + n * this.perEntry);
+  }
+
+  /** 쏟아지는 중인 구슬이 있는지(효과음용). */
+  get pouring(): boolean {
+    return this.queued > 0 || this.balls.some((b) => !b.settled);
   }
 
   /** @returns 이번 프레임에 새로 바닥/파일에 안착한 구슬 수(사운드 트리거용). */
   update(dt: number, rect: Rect): number {
-    if (!this.active) return 0;
-    // 레이아웃이 바뀌면 컬럼 폭만 갱신.
-    this.colW = rect.w / this.cols.length;
-    this.ballR = Math.max(4, rect.w * BALL_R_RATIO);
+    this.layout(rect);
+    if (this.flash > 0) this.flash = Math.max(0, this.flash - dt * 2.5);
 
-    // 스폰(위에서 쏟아짐).
-    this.spawnAcc += dt * this.spawnRate;
-    while (this.spawned < this.total && this.spawnAcc >= 1) {
+    // 스폰 — 대기열이 길수록 빠르게 쏟아진다.
+    const rate = Math.max(this.perEntry / BURST_TIME, this.queued * 2);
+    this.spawnAcc += dt * rate;
+    while (this.queued > 0 && this.spawnAcc >= 1) {
       this.spawnAcc -= 1;
-      this.spawned++;
+      this.queued--;
       this.balls.push({
         x: rect.x + rect.w * (0.08 + Math.random() * 0.84), // 박스 폭 전체로 쏟아져 고르게 쌓이게
-        y: rect.y - this.ballR - Math.random() * rect.h * 0.15,
+        y: boxMetrics(rect).top + Math.random() * this.ballR * 2,
         vx: (Math.random() - 0.5) * rect.w * 0.25,
         vy: 0,
         r: this.ballR * (0.92 + Math.random() * 0.16),
@@ -88,8 +106,9 @@ export class PayoutBox {
         hue: 42 + Math.random() * 10, // 금속 금색 계열
       });
     }
+    if (this.queued === 0) this.spawnAcc = 0;
 
-    const floorBase = rect.y + rect.h;
+    const floorBase = boxMetrics(rect).floor;
     const g = rect.h * 4.2; // 중력
     let newly = 0;
     for (const b of this.balls) {
@@ -123,9 +142,13 @@ export class PayoutBox {
       }
     }
 
-    if (this.spawned >= this.total && this.settledCount >= this.total) {
-      this.done = true;
-      this.active = false;
+    // 박스가 가득 차면 비우고(반짝) 다시 쌓는다.
+    if (this.settledCount >= this.capacity) {
+      this.balls = this.balls.filter((b) => !b.settled);
+      this.cols.fill(0);
+      this.settledCount = 0;
+      this.boxes++;
+      this.flash = 1;
     }
     return newly;
   }
@@ -142,20 +165,16 @@ export class PayoutBox {
     return best;
   }
 
-  /** 안착 진행도 0..1 (game 에서 보유 구슬 적립 환산용). */
-  progress(): number {
-    return this.total ? this.settledCount / this.total : 1;
-  }
-
-  draw(ctx: CanvasRenderingContext2D, rect: Rect): void {
+  draw(ctx: CanvasRenderingContext2D, rect: Rect, info: BonusInfo): void {
     const r = rect;
+    const open = info.left > 0;
     ctx.save();
     // ---- 박스 뒤 유리 패널(반투명 하늘빛) ----
     ctx.save();
     roundRect(ctx, r.x, r.y, r.w, r.h, 14);
     const bg = ctx.createLinearGradient(0, r.y, 0, r.y + r.h);
-    bg.addColorStop(0, "rgba(180,225,255,0.10)");
-    bg.addColorStop(1, "rgba(120,180,230,0.22)");
+    bg.addColorStop(0, "rgba(10,30,60,0.42)");
+    bg.addColorStop(1, "rgba(60,110,170,0.32)");
     ctx.fillStyle = bg;
     ctx.fill();
     ctx.clip();
@@ -163,42 +182,43 @@ export class PayoutBox {
     // ---- 쌓인 구슬 + 낙하 중 구슬 ----
     for (const b of this.balls) this.drawBall(ctx, b);
 
-    // ---- 금빛 차오름 글로우(파일 표면 위로 은은하게) ----
-    const prog = this.progress();
-    if (prog > 0) {
-      const fillTop = r.y + r.h * (1 - Math.min(1, prog * 0.95));
-      const gl = ctx.createLinearGradient(0, fillTop, 0, r.y + r.h);
-      gl.addColorStop(0, "rgba(255,210,90,0.0)");
-      gl.addColorStop(1, "rgba(255,190,60,0.18)");
-      ctx.fillStyle = gl;
-      ctx.fillRect(r.x, fillTop, r.w, r.y + r.h - fillTop);
+    // ---- 박스가 가득 차서 비워질 때 금빛 반짝 ----
+    if (this.flash > 0) {
+      ctx.fillStyle = `rgba(255,214,90,${0.45 * this.flash})`;
+      ctx.fillRect(r.x, r.y, r.w, r.h);
     }
     ctx.restore(); // clip
 
-    // ---- 박스 전면 테두리(플라스틱 하이라이트) ----
+    // ---- 박스 전면 테두리(플라스틱 하이라이트) — 보너스 중엔 금빛 ----
     ctx.lineWidth = 5;
-    ctx.strokeStyle = "rgba(230,245,255,0.85)";
-    ctx.shadowColor = "rgba(150,210,255,0.8)";
+    ctx.strokeStyle = open ? "rgba(255,226,140,0.95)" : "rgba(230,245,255,0.7)";
+    ctx.shadowColor = open ? "rgba(255,200,60,0.9)" : "rgba(150,210,255,0.8)";
     ctx.shadowBlur = 16;
     roundRect(ctx, r.x, r.y, r.w, r.h, 14);
     ctx.stroke();
     ctx.shadowBlur = 0;
-    // 상단 반사 하이라이트.
-    ctx.strokeStyle = "rgba(255,255,255,0.5)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(r.x + 14, r.y + 5);
-    ctx.lineTo(r.x + r.w - 14, r.y + 5);
-    ctx.stroke();
 
-    // ---- 카운터(쌓인 개수 / 반짝) ----
-    ctx.fillStyle = "#fff4c2";
-    ctx.font = `bold ${Math.round(r.h * 0.11)}px system-ui, sans-serif`;
+    // ---- 상단: 남은 시간 / 하단: 입상 수·지급 합계 ----
+    const { fs } = boxMetrics(r);
+    const cx = r.x + r.w / 2;
+    const maxW = r.w * 0.92;
+    const sec = Math.ceil(info.left);
     ctx.textAlign = "center";
-    ctx.textBaseline = "top";
+    ctx.textBaseline = "middle";
     ctx.shadowColor = "#ffcf3a";
     ctx.shadowBlur = 12;
-    ctx.fillText("🪙 BONUS", r.x + r.w / 2, r.y + r.h * 0.03);
+    fitText(ctx, open ? `BONUS ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}` : "BONUS 종료", cx, r.y + fs * 0.85, maxW, fs, "bold", "#fff4c2");
+    fitText(ctx, open ? "홀 입상 1개 = +1,000" : "보너스 합계", cx, r.y + fs * 1.8, maxW, fs * 0.6, "", open ? "#ffe9a8" : "#dfeeff");
+    fitText(
+      ctx,
+      `입상 ${info.entries.toLocaleString()}개 · +${info.awarded.toLocaleString()}`,
+      cx,
+      r.y + r.h - fs * 0.72,
+      maxW,
+      fs * 0.8,
+      "bold",
+      info.awarded > 0 ? "#ffd84a" : "#c9d6e6",
+    );
     ctx.restore();
   }
 
@@ -247,4 +267,26 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.arcTo(x, y + h, x, y, rr);
   ctx.arcTo(x, y, x + w, y, rr);
   ctx.closePath();
+}
+
+/** 박스 폭을 넘지 않도록 글자 크기를 줄여 한 줄로 그린다. */
+function fitText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxW: number,
+  size: number,
+  weight: string,
+  color: string,
+): void {
+  let px = Math.round(size);
+  ctx.font = `${weight} ${px}px system-ui, sans-serif`;
+  const w = ctx.measureText(text).width;
+  if (w > maxW) {
+    px = Math.max(8, Math.floor((px * maxW) / w));
+    ctx.font = `${weight} ${px}px system-ui, sans-serif`;
+  }
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
 }
